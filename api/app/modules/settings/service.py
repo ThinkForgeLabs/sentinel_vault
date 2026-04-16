@@ -23,7 +23,7 @@ async def upsert_setting(db: AsyncSession, key: str, data: SettingUpdate) -> Sys
         await db.flush()
         return existing
     else:
-        setting = SystemSetting(key=key, value_json=data.value_json)
+        setting = SystemSetting(key=key, value_json=data)
         db.add(setting)
         await db.flush()
         return setting
