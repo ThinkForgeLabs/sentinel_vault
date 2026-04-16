@@ -1,0 +1,18 @@
+:root {
+  --bg: #0a0e17;
+  --surface: #111827;
+  --elevated: #1a2332;
+  --border: #1e2d3d;
+  --border-lt: #2a3a4d;
+  --hover: #1e2d3d;
+  --accent: #00d4ff;
+  --accent-glow: rgba(0, 212, 255, 0.15);
+  --text: #e2e8f0;
+  --text-secondary: #8899aa;
+  --text-muted: #556677;
+  --green: #10b981;
+  --yellow: #f59e0b;
+  --red: #ef4444;
+  --purple: #7c5cff;
+  --orange: #f97316;
+}
