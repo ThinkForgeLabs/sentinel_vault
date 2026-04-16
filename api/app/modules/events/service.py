@@ -7,6 +7,8 @@ from app.core.exceptions import NotFoundError
 from app.modules.events.model import Event
 from app.modules.events.schemas import EventFilters, EventStats, EventUpdate
 
+import json
+from uuid import uuid4
 
 async def list_events(
     db: AsyncSession,
@@ -74,3 +76,24 @@ async def get_event_stats(db: AsyncSession) -> EventStats:
     alerted = alerted_result.scalar() or 0
 
     return EventStats(total_today=total, by_type=by_type, alerted_count=alerted)
+async def create_motion_event(db: AsyncSession, event_data: dict) -> Event:
+    """Create an Event row from a motion detection result."""
+    event = Event(
+        id=event_data.get("id", uuid4()),
+        camera_id=event_data["camera_id"],
+        event_type="motion",
+        subtype=event_data.get("subtype", "frame_diff"),
+        started_at=event_data["started_at"],
+        ended_at=event_data.get("ended_at"),
+        confidence=event_data.get("confidence", 0.0),
+        importance=event_data.get("importance", "low"),
+        thumbnail_path=event_data.get("thumbnail_path"),
+        clip_path=None,
+        clip_duration_seconds=None,
+        alerted=False,
+        review_status="pending",
+        metadata_json=json.dumps(event_data.get("metadata", {})),
+    )
+    db.add(event)
+    await db.flush()
+    return event

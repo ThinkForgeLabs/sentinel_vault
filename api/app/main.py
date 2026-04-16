@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.logging import setup_logging
-from app.db.session import engine
+from app.db.session import engine, async_session_factory
 from app.db.base import Base
 from app.middleware.error_handler import register_error_handlers
 from app.middleware.request_context import RequestContextMiddleware
@@ -24,6 +24,9 @@ from app.modules.recordings.tasks import (
     retention_cleanup_loop,
     start_recording_for_enabled_cameras,
 )
+from app.modules.detection.routes import router as detection_router
+from app.modules.detection.service import init_detectors
+from app.modules.events.drain_task import motion_event_drain_loop
 
 
 @asynccontextmanager
@@ -37,11 +40,22 @@ async def lifespan(app: FastAPI):
     task_flush = asyncio.create_task(flush_segments_loop())
     task_retention = asyncio.create_task(retention_cleanup_loop())
 
+    # ── Detection startup ──
+    async with async_session_factory() as db:
+        from app.modules.cameras.model import Camera
+        from sqlalchemy import select
+        result = await db.execute(select(Camera.id))
+        camera_ids = [str(row[0]) for row in result.all()]
+        await init_detectors(db, camera_ids)
+
+    task_motion_drain = asyncio.create_task(motion_event_drain_loop())
+
     yield
 
     # ── Shutdown ──
     task_flush.cancel()
     task_retention.cancel()
+    task_motion_drain.cancel()
     recording_manager.stop_all()
     capture_manager.release_all()
     await engine.dispose()
@@ -77,6 +91,7 @@ app.include_router(events_router, prefix=f"{PREFIX}/events", tags=["Events"])
 app.include_router(playback_router, prefix=f"{PREFIX}/playback", tags=["Playback"])
 app.include_router(settings_router, prefix=f"{PREFIX}/settings", tags=["Settings"])
 app.include_router(recordings_router, prefix=f"{PREFIX}/recordings", tags=["Recordings"])
+app.include_router(detection_router, prefix=f"{PREFIX}/detection", tags=["Detection"])
 
 
 @app.get(f"{PREFIX}/system/health")

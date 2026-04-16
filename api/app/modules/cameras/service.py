@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import select, delete as sa_delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -53,6 +53,28 @@ async def update_camera(db: AsyncSession, camera_id: str, data: CameraUpdate) ->
 
 async def delete_camera(db: AsyncSession, camera_id: str) -> None:
     camera = await get_camera(db, camera_id)
+
+    # Stop recording and detection before deleting
+    from app.modules.recordings.recording_manager import recording_manager
+    recording_manager.stop_recording(str(camera.id))
+
+    from app.modules.detection.manager import DetectionManager
+    detection_mgr = DetectionManager.get_instance()
+    detection_mgr.unregister(str(camera.id))
+
+    cam_id = camera.id
+
+    # Bulk-delete all child rows that have NOT NULL FK to cameras.
+    # The ORM's backref="recordings" causes SQLAlchemy to try SET NULL
+    # at the Python level before SQL reaches the DB, violating NOT NULL.
+    # Bulk deletes bypass the ORM identity map and go straight to SQL.
+    from app.modules.events.model import Detection, Event
+    from app.modules.recordings.model import Recording
+
+    await db.execute(sa_delete(Detection).where(Detection.camera_id == cam_id))
+    await db.execute(sa_delete(Event).where(Event.camera_id == cam_id))
+    await db.execute(sa_delete(Recording).where(Recording.camera_id == cam_id))
+
     await db.delete(camera)
     await db.flush()
 
