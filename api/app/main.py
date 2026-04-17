@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -28,6 +29,74 @@ from app.modules.detection.routes import router as detection_router
 from app.modules.detection.service import init_detectors
 from app.modules.events.drain_task import motion_event_drain_loop
 
+logger = logging.getLogger(__name__)
+
+
+async def _cancel_task(task: asyncio.Task, name: str):
+    """Cancel a background task and suppress CancelledError."""
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+    logger.info(f"Shutdown: cancelled {name}")
+
+
+async def _final_flush_segments():
+    """Persist any recording segments still in the queue."""
+    from app.modules.recordings.model import Recording
+
+    segments = recording_manager.drain_completed()
+    if not segments:
+        return
+    try:
+        async with async_session_factory() as db:
+            for seg in segments:
+                db.add(Recording(
+                    id=seg["id"],
+                    camera_id=seg["camera_id"],
+                    start_time=seg["start_time"],
+                    end_time=seg["end_time"],
+                    file_path=seg["file_path"],
+                    file_size=seg["file_size"],
+                    duration_seconds=seg["duration_seconds"],
+                    resolution=seg["resolution"],
+                    status=seg["status"],
+                ))
+            await db.commit()
+        logger.info(f"Shutdown: flushed {len(segments)} final segments")
+    except Exception as e:
+        logger.warning(f"Shutdown: segment flush failed: {e}")
+
+
+async def _final_flush_events():
+    """Persist any motion events still in the queue."""
+    from app.modules.events.model import Event
+
+    events = recording_manager.drain_motion_events()
+    if not events:
+        return
+    try:
+        async with async_session_factory() as db:
+            for ev in events:
+                db.add(Event(
+                    id=ev["id"],
+                    camera_id=ev["camera_id"],
+                    event_type=ev["event_type"],
+                    started_at=ev["started_at"],
+                    ended_at=ev["ended_at"],
+                    confidence=ev["confidence"],
+                    importance=ev["importance"],
+                    thumbnail_path=ev.get("thumbnail_path"),
+                    clip_path=ev.get("clip_path"),
+                    clip_duration_seconds=ev.get("clip_duration_seconds"),
+                    metadata=ev.get("metadata"),
+                ))
+            await db.commit()
+        logger.info(f"Shutdown: flushed {len(events)} final events")
+    except Exception as e:
+        logger.warning(f"Shutdown: event flush failed: {e}")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -52,13 +121,34 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    # ── Shutdown ──
-    task_flush.cancel()
-    task_retention.cancel()
-    task_motion_drain.cancel()
+    # ──────────────────────────────────────
+    #  Shutdown  (order matters!)
+    # ──────────────────────────────────────
+
+    logger.info("Shutdown: stopping recordings...")
+
+    # 1. Signal all recording threads to stop
     recording_manager.stop_all()
+
+    # 2. Wait for threads to finish writing final segments / clips
+    await asyncio.to_thread(recording_manager.wait_for_threads, 15)
+
+    # 3. Final DB flush for anything the threads enqueued during wind-down
+    await _final_flush_segments()
+    await _final_flush_events()
+
+    # 4. Cancel background loop tasks (nothing left to flush)
+    await _cancel_task(task_flush, "flush_segments_loop")
+    await _cancel_task(task_retention, "retention_cleanup_loop")
+    await _cancel_task(task_motion_drain, "motion_event_drain_loop")
+
+    # 5. Release camera hardware
     capture_manager.release_all()
+
+    # 6. Dispose DB engine
     await engine.dispose()
+
+    logger.info("Shutdown: complete")
 
 
 app = FastAPI(
