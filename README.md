@@ -4,28 +4,31 @@ for the backend server : (sentinel_test) C:\Users\marve\Documents\Computer_Relat
 
 for the frontend server :(sentinel_test) C:\Users\marve\Documents\Computer_Related\Sentinel_vault\web>npm run dev
 
-
 <div align="center">
 
 # 🛡️ Sentinel Vault
 
-**Self-hosted intelligent video surveillance system**
+**Self-hosted surveillance platform for reliable monitoring today and AI-powered security tomorrow.**
 
 Built with FastAPI · React · PostgreSQL · Redis · FFmpeg
 
-[Features](#-features) · [Architecture](#-architecture) · [Quick Start](#-quick-start) · [API Reference](#-api-reference) · [Roadmap](#-roadmap)
-
----
-
-![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?logo=postgresql&logoColor=white)
 ![Redis](https://img.shields.io/badge/Redis-DC382D?logo=redis&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)
-![Tailwind](https://img.shields.io/badge/Tailwind_CSS-06B6D4?logo=tailwindcss&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-06B6D4?logo=tailwindcss&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
+
+[Overview](#-overview) •
+[Features](#-features) •
+[Architecture](#-architecture) •
+[Quick Start](#-quick-start) •
+[Local Development](#-local-development) •
+[Roadmap](#-roadmap) •
+[License](#-license)
 
 </div>
 
@@ -33,181 +36,152 @@ Built with FastAPI · React · PostgreSQL · Redis · FFmpeg
 
 ## 📋 Overview
 
-Sentinel Vault is a modern, self-hosted video surveillance platform that turns USB cameras (or RTSP/IP cameras) into a full-featured security system. Record continuously, stream live footage, detect events, and review historical playback — all from a sleek dark-themed dashboard.
+**Sentinel Vault** is a local-first, self-hosted video surveillance system for **USB** and **RTSP/IP** cameras.
 
-No cloud. No subscriptions. **Your cameras, your data, your server.**
+It is built to provide the core features you need today:
+
+- continuous recording
+- live monitoring
+- motion-based events
+- timeline playback
+- user and role management
+- storage retention
+- self-hosted deployment
+
+And it is being designed to grow into an **AI-assisted security platform** with future support for:
+
+- object detection
+- known-person alerts
+- intelligent event filtering
+- smarter notifications
+
+**No cloud required. No subscriptions. Your cameras, your data, your server.**
 
 ---
 
 ## ✨ Features
 
-### 📹 Multi-Camera Management
-- Add and configure multiple USB or RTSP/IP cameras
-- Auto-start recording on server boot
-- Real-time camera status monitoring
-- Configurable recording segments (default 15 min)
+### 📹 Camera & Recording
+- Multi-camera management for **USB** and **RTSP/IP** sources
+- Continuous recording with **automatic start on boot**
+- Configurable recording segment rotation
+- Automatic retention policy and storage management
 
-### 🔴 Live Streaming
-- Real-time WebSocket video streaming
-- Low-latency JPEG frame delivery
-- Multi-viewer support per camera
+### 📡 Live Monitoring
+- Real-time **WebSocket** video streaming
+- Responsive live camera viewing
+- Multi-camera support from a single dashboard
 
-### ⏪ Playback & Review
-- Browse recordings by camera and date
-- Segment-based navigation with prev/next controls
-- On-the-fly AVI/MPEG-4 → H.264 transcoding for browser playback
-- Cached transcodes for instant replay
+### 🎞️ Playback & Timeline
+- Playback by **camera** and **date**
+- Segment navigation for recorded footage
+- Timeline-based browsing
+- Real-time playback review
+- On-the-fly **H.264 transcoding** with caching for browser playback
 
-### ⚡ Event Detection & Logging
+### 🚨 Events & Detection
+- Motion detection
 - Event logging with severity levels
-- Filterable event list (by camera, type, date range)
-- Event statistics dashboard with counts and trends
+- Event statistics dashboard
+- Filterable event history and review workflow
 
-### 🔐 Authentication & Security
-- JWT-based authentication with token refresh
-- Role-based access control (Owner, Admin, Viewer)
-- User management with invite system
-- Secure password hashing with bcrypt
+### 🔐 Authentication & Access Control
+- JWT authentication
+- Role-based access control
+- User management with **Owner**, **Admin**, and **Viewer** roles
 
-### ⚙️ System Settings
-- System-wide configuration management
-- Per-camera recording settings
-- Storage path configuration
+### 🛠️ Platform & Operations
+- Dark-themed responsive UI
+- PostgreSQL with async SQLAlchemy
+- Redis caching layer
+- Alembic database migrations
+- Docker Compose orchestration
+- Structured request logging with correlation IDs
+
+---
+
+## 🧠 AI Direction
+
+Sentinel Vault already supports **motion-based detection**, but the long-term goal is to evolve the platform into a more intelligent surveillance system.
+
+Planned AI-driven capabilities include:
+
+- object detection for **person**, **vehicle**, and **animal**
+- known-person recognition and alerts
+- smarter event filtering and prioritization
+- more meaningful notifications based on detected activity
+
+The focus right now is building a **solid, dependable NVR foundation** first — then layering AI on top of it in a practical way.
 
 ---
 
 ## 🏗️ Architecture
 
 ```text
-┌─────────────────────────────────────────────────────┐
-│                   React Frontend                     │
-│            Vite + TypeScript + Tailwind              │
-│                                                      │
-│   Dashboard · Cameras · Events · Playback · Settings │
-└──────────────────────┬──────────────────────────────┘
-                       │  REST API + WebSocket
-┌──────────────────────┼──────────────────────────────┐
-│            Docker Compose Stack                      │
-│   ┌──────────────────┴────────────────────────┐     │
-│   │          sv-api (FastAPI)                  │     │
-│   │   Router Layer                             │     │
-│   │   /auth  /cameras  /events  /playback      │     │
-│   │   /recordings  /settings  /users           │     │
-│   │   Service Layer                            │     │
-│   │   Business logic · Validation · Queries    │     │
-│   │   FFmpeg · Background Tasks                │     │
-│   └──────┬─────────────────┬──────────────────┘     │
-│   ┌──────┴──────┐   ┌─────┴─────┐                   │
-│   │ sv-postgres │   │ sv-redis  │                    │
-│   │ PostgreSQL  │   │  Redis 7  │                    │
-│   │  :5433→5432 │   │  :6379    │                    │
-│   └─────────────┘   └───────────┘                   │
-└──────────────────────────────────────────────────────┘
-         │
-    ┌────┴────┐
-    │ ./data  │  Mounted volume for recordings
-    └─────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                        React Frontend                        │
+│                 Vite + TypeScript + Tailwind                │
+│                                                              │
+│    Dashboard · Cameras · Events · Playback · Settings       │
+└───────────────────────────┬──────────────────────────────────┘
+                            │ REST API + WebSocket
+┌───────────────────────────┼──────────────────────────────────┐
+│                     FastAPI Backend                          │
+│                                                              │
+│  Auth · Cameras · Recordings · Playback · Events · Users    │
+│  Settings · FFmpeg integration · Background processing       │
+└───────────────┬───────────────────────────────┬──────────────┘
+                │                               │
+        ┌───────▼────────┐              ┌───────▼───────┐
+        │   PostgreSQL   │              │     Redis     │
+        │   App data     │              │ Cache / fast  │
+        │   metadata     │              │ access layer  │
+        └────────────────┘              └───────────────┘
+                         │
+                  ┌──────▼──────┐
+                  │   Storage   │
+                  │ recordings  │
+                  │ segments    │
+                  └─────────────┘
+```
 
-🛠️ Tech Stack
-Backend
-Technology	Purpose
-Python 3.11+	Runtime
-FastAPI	Web framework & REST API
-SQLAlchemy 2.0 (async)	Async ORM
-PostgreSQL 16 + asyncpg	Primary database
-Redis 7	Caching & session management
-Alembic	Database migrations
-FFmpeg	Camera capture & video transcoding
-Pydantic v2	Schema validation & settings
-Passlib + bcrypt	Password hashing
-python-jose	JWT token handling
-Uvicorn	ASGI server
-httpx	Async HTTP client
-Frontend
-Technology	Purpose
-React 18	UI framework
-TypeScript	Type safety
-Vite	Build tool & dev server
-Tailwind CSS	Utility-first styling
-Zustand	Lightweight state management
-React Router v6	Client-side routing
-Infrastructure
-Technology	Purpose
-Docker Compose	Container orchestration
-PostgreSQL 16 Alpine	Database container
-Redis 7 Alpine	Cache container
+---
 
-📁 Project Structure
-text
-Sentinel_vault/
-├── docker-compose.yml              # Container orchestration
-├── .env                            # Environment variables
-├── data/                           # Mounted recording storage
-├── api/                            # Backend (FastAPI)
-│   ├── Dockerfile                  # API container build
-│   ├── pyproject.toml              # Python project config & dependencies
-│   ├── app/
-│   │   ├── main.py                 # App entry point & lifespan
-│   │   ├── core/
-│   │   │   ├── config.py           # Pydantic settings (env-based)
-│   │   │   ├── exceptions.py       # Custom exception classes
-│   │   │   ├── logging.py          # Structured logging setup
-│   │   │   └── security.py        # JWT & password utilities
-│   │   ├── db/
-│   │   │   ├── base.py             # SQLAlchemy declarative base
-│   │   │   ├── models.py           # Model registry
-│   │   │   ├── seed.py             # Initial data seeding
-│   │   │   └── session.py          # Async session factory
-│   │   ├── dependencies/
-│   │   │   ├── auth.py             # get_current_user dependency
-│   │   │   └── common.py           # Shared DI (db session, pagination)
-│   │   ├── middleware/
-│   │   │   ├── error_handler.py    # Global exception handling
-│   │   │   └── request_context.py  # Request ID & access logging
-│   │   ├── modules/
-│   │   │   ├── auth/               # Login, register, token refresh
-│   │   │   ├── cameras/            # CRUD + capture manager
-│   │   │   ├── events/             # Event logging & statistics
-│   │   │   ├── playback/           # Video serving & transcoding
-│   │   │   ├── recordings/         # Recording lifecycle & manager
-│   │   │   ├── settings/           # System configuration
-│   │   │   └── users/              # User management & roles
-│   │   ├── services/
-│   │   │   ├── audit.py            # Audit trail logging
-│   │   │   ├── notifications.py    # Notification dispatch
-│   │   │   ├── storage.py          # File storage abstraction
-│   │   │   └── video.py            # FFmpeg video processing
-│   │   ├── tasks/
-│   │   │   └── sync_events.py      # Background task runners
-│   │   └── utils/
-│   │       ├── datetime.py         # Timezone & date helpers
-│   │       ├── pagination.py       # Cursor/offset pagination
-│   │       └── responses.py        # Standardized API responses
-├── web/                            # Frontend (React)
-│   └── src/
-│       ├── api/                    # Typed API client functions
-│       ├── app/                    # App.tsx, main.tsx, providers, router
-│       ├── components/
-│       │   ├── layout/             # AppShell, Sidebar, Topbar, PageHeader
-│       │   └── ui/                 # Badge, Button, Input, Modal, Spinner
-│       ├── hooks/                  # useAuth, useCurrentUser, useDebounce
-│       ├── lib/                    # cn(), constants, date & format utils
-│       ├── pages/
-│       │   ├── Cameras/            # Camera grid & config forms
-│       │   ├── Dashboard/          # Stat cards & recent events
-│       │   ├── Events/             # Event browser with filters
-│       │   ├── Login/              # Auth page
-│       │   ├── Playback/           # Video player & timeline
-│       │   └── Settings/           # System settings page
-│       ├── store/                  # Zustand stores (auth, playback, ui)
-│       └── types/                  # TypeScript interfaces
-└── README.md
+## 🧰 Tech Stack
 
-elixir
+### Backend
 
-**Part 2 — paste directly after Part 1:**
+| Technology | Purpose |
+|---|---|
+| Python 3.11+ | Runtime |
+| FastAPI | Web framework and API |
+| SQLAlchemy (async) | ORM |
+| PostgreSQL | Primary database |
+| Redis | Caching layer |
+| Alembic | Database migrations |
+| FFmpeg | Camera ingest and transcoding |
+| Pydantic | Validation and configuration |
+| Uvicorn | ASGI server |
 
-```markdown
+### Frontend
+
+| Technology | Purpose |
+|---|---|
+| React 18 | UI framework |
+| TypeScript | Type safety |
+| Vite | Dev server and build tool |
+| Tailwind CSS | Styling |
+| Zustand | State management |
+| React Router | Client-side routing |
+
+### Infrastructure
+
+| Technology | Purpose |
+|---|---|
+| Docker Compose | Local orchestration |
+| PostgreSQL | Persistent storage |
+| Redis | Fast caching and coordination |
+
 ---
 
 ## 🚀 Quick Start
@@ -215,188 +189,276 @@ elixir
 ### Prerequisites
 
 | Requirement | Version |
-|:------------|:--------|
+|---|---|
+| Python | 3.11+ |
+| Node.js | 18+ |
 | Docker | 24+ |
 | Docker Compose | v2+ |
-| Node.js | 18+ |
-| FFmpeg | Latest (on host for camera access) |
-| Camera | USB webcam or RTSP stream |
+| FFmpeg | Installed on host |
+| Camera Source | USB webcam or RTSP stream |
 
-### 1. Clone the Repository
+---
 
-```bash
-git clone https://github.com/yourusername/sentinel-vault.git
-cd sentinel-vault
+## ⚙️ Environment Configuration
 
-2. Configure Environment
-Create a .env file in the project root:
+Create a `.env` file in the project root.
 
-env
-SECRET_KEY=your-super-secret-key-change-this
+### Example for local backend development
+
+```env
+SECRET_KEY=change-this-to-a-secure-random-value
+DATABASE_URL=postgresql+asyncpg://sentinel:sentinel@localhost:5433/sentinel_vault
+REDIS_URL=redis://localhost:6379/0
+STORAGE_PATH=./data/recordings
+CORS_ORIGINS=["http://localhost:5173"]
+SEGMENT_DURATION_MINUTES=15
+```
+
+### Example for Dockerized backend
+
+```env
+SECRET_KEY=change-this-to-a-secure-random-value
 DATABASE_URL=postgresql+asyncpg://sentinel:sentinel@postgres:5432/sentinel_vault
 REDIS_URL=redis://redis:6379/0
 STORAGE_PATH=/data/recordings
 CORS_ORIGINS=["http://localhost:5173"]
 SEGMENT_DURATION_MINUTES=15
+```
 
-⚠️ The hostnames postgres and redis resolve to Docker service names inside the compose network.
+> **Note:** Use `localhost` when the backend runs on your machine, and use Docker service names like `postgres` and `redis` when the backend runs inside Docker.
 
-3. Start the Stack
-bash
-docker compose up -d
+---
 
-Container	Service	Port
-sv-postgres	PostgreSQL 16	5433 → 5432
-sv-redis	Redis 7	6379
-sv-api	FastAPI (Uvicorn)	8000
-bash
-docker compose ps
-docker compose logs -f api
+## 💻 Local Development
 
-On first startup the API will:
+This is the easiest setup if you are actively building features.
 
-✅ Wait for PostgreSQL and Redis health checks to pass
-✅ Run database migrations
-✅ Seed default admin user
-✅ Auto-detect configured cameras
-✅ Begin continuous recording
-4. Frontend Setup
-bash
-cd web
+### 1. Start PostgreSQL and Redis
+
+```bash
+docker compose up -d postgres redis
+```
+
+If your compose file uses different service names, replace them accordingly.
+
+---
+
+### 2. Start an RTSP stream for a USB webcam (Windows example)
+
+If you are testing with a USB webcam and want to expose it as an RTSP stream, run:
+
+```bash
+ffmpeg -f dshow -rtbufsize 100M -i video="USB2.0 FHD UVC WebCam" -vf scale=640:480 -r 15 -c:v libx264 -preset ultrafast -tune zerolatency -b:v 1M -f rtsp rtsp://localhost:8554/webcam
+```
+
+> Replace `USB2.0 FHD UVC WebCam` with your actual device name.
+>
+> If you already have an RTSP/IP camera, you can skip this step and use the camera’s RTSP URL directly.
+>
+> Make sure an RTSP server is available on `localhost:8554` if you are publishing to that address.
+
+---
+
+### 3. Start the backend server
+
+From the `api` directory:
+
+```bash
+uvicorn app.main:app --reload --port 8000
+```
+
+---
+
+### 4. Start the frontend server
+
+From the `web` directory:
+
+```bash
 npm install
 npm run dev
+```
 
-5. Open the App
-Navigate to http://localhost:5173
+---
 
-Field	Value
-Username	admin
-Password	admin
-⚠️ Change the default password immediately via Settings after first login.
+### 5. Open the app
 
-🐳 Docker Services
-Volumes
-Volume	Mount	Purpose
-pg_data	/var/lib/postgresql/data	Persistent database storage
-redis_data	/data	Redis persistence
-./api	/app	Live code reload (dev)
-./data	/data	Recording file storage
-Useful Commands
-bash
-docker compose up -d              # Start all services
-docker compose down               # Stop all services
-docker compose logs -f api        # View API logs
-docker compose restart api        # Restart just the API
-docker compose exec postgres psql -U sentinel -d sentinel_vault
-docker compose exec redis redis-cli
-docker compose up -d --build api  # Rebuild API container
-docker compose down -v            # Nuke everything
+Open your browser and go to:
 
-🔌 API Reference
-All endpoints are prefixed with /api/v1. Protected routes require Authorization: Bearer <token>.
+```text
+http://localhost:5173
+```
 
-Authentication
-Method	Endpoint	Auth	Description
-POST	/auth/login	❌	Login & receive JWT
-POST	/auth/register	❌	Register new account
-GET	/auth/me	✅	Get current user profile
-Cameras
-Method	Endpoint	Auth	Description
-GET	/cameras	✅	List all cameras
-POST	/cameras	✅	Add a new camera
-GET	/cameras/{id}	✅	Get camera details
-PUT	/cameras/{id}	✅	Update camera config
-DELETE	/cameras/{id}	✅	Remove a camera
-WS	/cameras/{id}/stream	✅	Live video WebSocket
-Recordings
-Method	Endpoint	Auth	Description
-GET	/recordings	✅	List recording segments
-POST	/recordings/start	✅	Start recording a camera
-POST	/recordings/stop	✅	Stop recording a camera
-Playback
-Method	Endpoint	Auth	Description
-GET	/playback/availability	✅	Get segments for camera + date
-GET	/playback/recording/{id}/video	❌*	Stream transcoded video
-*Video endpoint bypasses auth so <video> elements can fetch directly.
+---
 
-Events
-Method	Endpoint	Auth	Description
-GET	/events	✅	List events (filterable)
-GET	/events/stats	✅	Aggregate event statistics
-Users
-Method	Endpoint	Auth	Description
-GET	/users	✅	List all users
-POST	/users	✅	Create user (admin only)
-PUT	/users/{id}	✅	Update user
-DELETE	/users/{id}	✅	Delete user (admin only)
-Settings
-Method	Endpoint	Auth	Description
-GET	/settings	✅	Get system settings
-PUT	/settings	✅	Update settings (admin only)
-🧪 Testing
-bash
+## 🐳 Docker Development
+
+If you want to run more of the stack with Docker:
+
+```bash
+docker compose up -d --build
+```
+
+Useful commands:
+
+```bash
+docker compose up -d
+docker compose down
+docker compose ps
+docker compose logs -f
+docker compose logs -f api
+docker compose restart api
+docker compose down -v
+```
+
+---
+
+## 🔌 Core API Areas
+
+Sentinel Vault is organized around these main backend modules:
+
+| Module | Purpose |
+|---|---|
+| `/auth` | Login, token handling, current user |
+| `/cameras` | Camera management and stream access |
+| `/recordings` | Recording lifecycle management |
+| `/playback` | Playback availability and video delivery |
+| `/events` | Event listing, filtering, and statistics |
+| `/users` | User and role management |
+| `/settings` | System-wide configuration |
+
+---
+
+## 📁 Project Structure
+
+```text
+Sentinel_vault/
+├── docker-compose.yml
+├── .env
+├── data/
+├── api/
+│   ├── Dockerfile
+│   ├── pyproject.toml
+│   └── app/
+│       ├── main.py
+│       ├── core/
+│       ├── db/
+│       ├── dependencies/
+│       ├── middleware/
+│       ├── modules/
+│       │   ├── auth/
+│       │   ├── cameras/
+│       │   ├── events/
+│       │   ├── playback/
+│       │   ├── recordings/
+│       │   ├── settings/
+│       │   └── users/
+│       ├── services/
+│       ├── tasks/
+│       └── utils/
+├── web/
+│   └── src/
+│       ├── api/
+│       ├── app/
+│       ├── components/
+│       ├── hooks/
+│       ├── lib/
+│       ├── pages/
+│       ├── store/
+│       └── types/
+└── README.md
+```
+
+---
+
+## 🧪 Testing
+
+### Backend
+
+```bash
 cd api
-pip install -e ".[dev]"
 pytest
-pytest --cov=app
+```
+
+If you use linting/formatting tools:
+
+```bash
 ruff check .
 ruff format .
+```
 
-The test suite uses aiosqlite as an in-memory database backend so tests run fast without requiring PostgreSQL.
+---
 
-🗺️ Roadmap
-✅ Completed
- Multi-camera management (USB + RTSP)
- Continuous recording with auto-start on boot
- Configurable segment rotation
- Live WebSocket video streaming
- JWT authentication with role-based access
- User management (Owner, Admin, Viewer)
- Event logging with severity levels
- Event statistics dashboard
- Playback with date picker & segment navigation
- On-the-fly H.264 transcoding with caching
- Dark-themed responsive UI
- PostgreSQL with async SQLAlchemy
- Redis caching layer
- Alembic database migrations
- Docker Compose orchestration
- Structured request logging with correlation IDs
+## 🗺️ Roadmap
 
-🔜 Coming Soon
- Automatic retention policy & storage management
- Background transcoding pipeline
- Motion detection
- Push notifications (browser, email, Discord)
- Visual timeline with event markers
- Camera offline detection & alerts
- Video clip export & download
- Multi-camera synchronized grid playback
- Production Docker Compose with Nginx
+### ✅ Completed
+- Multi-camera management (USB + RTSP)
+- Continuous recording with auto-start on boot
+- Configurable segment rotation
+- Live WebSocket video streaming
+- JWT authentication with role-based access
+- User management (Owner, Admin, Viewer)
+- Event logging with severity levels
+- Event statistics dashboard
+- Playback with date picker and segment navigation
+- On-the-fly H.264 transcoding with caching
+- Dark-themed responsive UI
+- PostgreSQL with async SQLAlchemy
+- Redis caching layer
+- Alembic database migrations
+- Docker Compose orchestration
+- Structured request logging with correlation IDs
+- Automatic retention policy and storage management
+- Motion detection and real-time playback
+- Timeline-based navigation
 
-🔮 Future
- ONVIF camera auto-discovery
- AI object detection (person, vehicle, animal)
- Face recognition & known-person alerts
- Mobile app (React Native)
- Multi-site support with remote access
- Prometheus metrics & Grafana dashboards
+### 🔜 Coming Soon
+- Background transcoding pipeline
+- Push notifications (browser, email, Discord)
+- Visual timeline with event markers
+- Camera offline detection and alerts
+- Video clip export and download
+- Multi-camera synchronized grid playback
+- Production Docker Compose with Nginx
 
-🤝 Contributing
-Fork the repository
-Create your feature branch (git checkout -b feature/amazing-feature)
-Commit your changes (git commit -m 'Add amazing feature')
-Push to the branch (git push origin feature/amazing-feature)
-Open a Pull Request
-📄 License
-This project is licensed under the MIT License — see the LICENSE file for details.
+### 🔮 Future
+- ONVIF camera auto-discovery
+- AI object detection (person, vehicle, animal)
+- Face recognition and known-person alerts
+- Mobile app (React Native)
+- Multi-site support with remote access
+- Prometheus metrics and Grafana dashboards
+
+---
+
+## 🤝 Contributing
+
+Contributions, suggestions, and feedback are welcome.
+
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push your branch
+5. Open a pull request
+
+Example:
+
+```bash
+git checkout -b feature/amazing-feature
+git commit -m "Add amazing feature"
+git push origin feature/amazing-feature
+```
+
+---
+
+## 📄 License
+
+This project is licensed under the **MIT License**.
+
+---
 
 <div align="center">
 
-Sentinel Vault — Your cameras. Your data. Your server.
-
-Built with ❤️
+**Sentinel Vault**  
+Your cameras. Your data. Your server.
 
 </div>
-
-```
