@@ -1,7 +1,9 @@
+# app/modules/events/schemas.py
+
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, Field, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, model_validator
 
 
 class EventFilters(BaseModel):
@@ -16,19 +18,19 @@ class EventOut(BaseModel):
     id: uuid.UUID
     camera_id: uuid.UUID
     event_type: str
-    subtype: str | None
+    subtype: str | None = None
     started_at: datetime
-    ended_at: datetime | None
+    ended_at: datetime | None = None
     confidence: float
     importance: str
-    thumbnail_path: str | None
-    clip_path: str | None
-    clip_duration_seconds: int | None
+    thumbnail_path: str | None = None
+    clip_path: str | None = None
+    clip_duration_seconds: float | None = None
     alerted: bool
     review_status: str
     created_at: datetime
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True)
 
 
 class EventUpdate(BaseModel):
@@ -49,11 +51,12 @@ class DetectionOut(BaseModel):
     detection_type: str
     score: float
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True)
+
 
 class EventResponse(BaseModel):
-    id: str
-    camera_id: str
+    id: uuid.UUID
+    camera_id: uuid.UUID
     event_type: str
     subtype: str | None = None
     started_at: datetime
@@ -62,7 +65,7 @@ class EventResponse(BaseModel):
     importance: str = "low"
     thumbnail_path: str | None = None
     clip_path: str | None = None
-    clip_duration_seconds: int | None = None
+    clip_duration_seconds: float | None = None
     has_clip: bool = False
     thumbnail_url: str | None = None
     clip_url: str | None = None

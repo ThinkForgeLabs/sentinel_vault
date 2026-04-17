@@ -1,3 +1,5 @@
+// api/events.ts
+
 import { api } from "./client";
 import type { CameraEvent, EventFilters, EventStats } from "@/types/event";
 
@@ -19,4 +21,7 @@ export const eventsApi = {
 
   updateReview: (id: string, status: string) =>
     api.patch<CameraEvent>(`/events/${id}`, { review_status: status }),
+
+  delete: (id: string) =>
+    api.delete<void>(`/events/${id}`),
 };
