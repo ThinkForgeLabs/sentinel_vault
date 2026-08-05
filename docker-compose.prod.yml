@@ -1,5 +1,3 @@
-version: "3.9"
-
 # Production compose file. Differences from docker-compose.yml (dev):
 #   - Postgres requires a real password (no POSTGRES_HOST_AUTH_METHOD: trust)
 #   - API runs without --reload and without the source bind-mount
