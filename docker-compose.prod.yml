@@ -53,6 +53,13 @@ services:
       UPLOAD_ROOT: /data/uploads
     volumes:
       - recordings_data:/data
+    # USB camera passthrough for the "Scan for Cameras" feature -- Docker
+    # containers have no host hardware access by default. Uncomment and
+    # list the /dev/videoN nodes that actually exist on this host (check
+    # with `ls /dev/video*` on the host first); mapping a device that
+    # doesn't exist will make `docker compose up` fail outright.
+    # devices:
+    #   - /dev/video0:/dev/video0
     depends_on:
       postgres:
         condition: service_healthy

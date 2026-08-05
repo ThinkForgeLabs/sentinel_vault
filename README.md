@@ -342,6 +342,23 @@ This creates a single `owner`-role user and nothing else. Don't use
 the password `sentinel` and adds 3 fake cameras with placeholder RTSP URLs,
 which you don't want in a real deployment.
 
+**USB camera scanning.** "Scan for Cameras" (USB tab) needs the `api`
+container to see the host's `/dev/videoN` device nodes -- containers get no
+hardware access by default. Run `ls /dev/video*` on the host, then uncomment
+and fill in the `devices:` block for the `api` service in
+`docker-compose.prod.yml` with the actual paths, e.g.:
+
+```yaml
+  api:
+    devices:
+      - /dev/video0:/dev/video0
+```
+
+If scanning still fails with a permissions error after that, add the host's
+`video` group to the container with `group_add: ["video"]` under the same
+service. IP/RTSP cameras (the "IP / RTSP" tab) don't need any of this --
+they're reached over the network, not through host hardware.
+
 **Note:** the current setup terminates TLS nowhere — `web` serves plain HTTP on port 80. Put it behind a TLS-terminating reverse proxy (e.g. Caddy, or Nginx + certbot) if it's reachable from the public internet.
 
 ---

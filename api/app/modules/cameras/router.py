@@ -162,7 +162,7 @@ def _scan_devices(active_sources: set[str]) -> list[dict]:
             })
             continue
 
-        cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
+        cap = cv2.VideoCapture(i, cv2.CAP_V4L2)
         if not cap.isOpened():
             continue
 
