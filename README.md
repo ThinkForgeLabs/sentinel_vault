@@ -328,6 +328,20 @@ On every deploy, run pending Alembic migrations against the running Postgres con
 docker compose -f docker-compose.prod.yml exec api alembic upgrade head
 ```
 
+**Create the first admin account.** There's no self-service registration --
+every user-creation endpoint requires an existing owner login, so a fresh
+database has zero accounts. Bootstrap the first one with:
+
+```bash
+docker compose -f docker-compose.prod.yml exec api python -m app.db.create_admin
+# prompts for a username (default "admin") and a password, hidden as you type
+```
+
+This creates a single `owner`-role user and nothing else. Don't use
+`app/db/seed.py` for this -- that script is dev/demo data only: it hardcodes
+the password `sentinel` and adds 3 fake cameras with placeholder RTSP URLs,
+which you don't want in a real deployment.
+
 **Note:** the current setup terminates TLS nowhere — `web` serves plain HTTP on port 80. Put it behind a TLS-terminating reverse proxy (e.g. Caddy, or Nginx + certbot) if it's reachable from the public internet.
 
 ---
