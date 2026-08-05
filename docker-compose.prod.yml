@@ -48,7 +48,7 @@ services:
       SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set}
       DATABASE_URL: postgresql+asyncpg://sentinel:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/sentinel_vault
       REDIS_URL: redis://redis:6379/0
-      CORS_ORIGINS: ${CORS_ORIGINS:-["http://localhost"]}
+      CORS_ORIGINS: '${CORS_ORIGINS:-["http://localhost"]}'
       STORAGE_ROOT: /data/recordings
       UPLOAD_ROOT: /data/uploads
     volumes:
