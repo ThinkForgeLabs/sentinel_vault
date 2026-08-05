@@ -4,7 +4,6 @@ export interface Camera {
   location_label: string;
   status: "online" | "offline";
   record_enabled: boolean;
-  ai_enabled: boolean;
   retention_days: number;
   created_at: string;
 }
@@ -14,7 +13,6 @@ export interface CameraCreate {
   location_label?: string;
   rtsp_url: string;
   record_enabled?: boolean;
-  ai_enabled?: boolean;
   retention_days?: number;
 }
 
@@ -23,7 +21,6 @@ export interface CameraUpdate {
   location_label?: string;
   rtsp_url?: string;
   record_enabled?: boolean;
-  ai_enabled?: boolean;
   retention_days?: number;
   status?: "online" | "offline";
 }

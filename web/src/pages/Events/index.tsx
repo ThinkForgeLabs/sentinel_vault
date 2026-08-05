@@ -24,7 +24,7 @@ export default function EventsPage() {
     if (initialLoad.current) setLoading(true);
 
     try {
-      const type = filter === "all" ? undefined : `${filter}_detected`;
+      const type = filter === "all" ? undefined : filter;
       const data = await eventsApi.list({ event_type: type });
       setEvents(data);
     } catch {
@@ -70,7 +70,7 @@ export default function EventsPage() {
       <div className="flex-1 overflow-y-auto p-4 lg:p-6">
         <PageHeader
           title="Events"
-          description="AI-detected events from all cameras"
+          description="Motion and camera activity from all cameras"
         />
         <div className="mb-5">
           <EventFiltersBar active={filter} onChange={setFilter} />

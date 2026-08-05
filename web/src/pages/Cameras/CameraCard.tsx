@@ -1,4 +1,4 @@
-import { VideoOff, Brain, Trash2 } from "lucide-react";
+import { VideoOff, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import type { Camera } from "@/types/camera";
 
@@ -60,11 +60,6 @@ export function CameraCard({ camera, onClick, onDelete }: CameraCardProps) {
           </p>
         </div>
         <div className="flex gap-1.5">
-          {camera.ai_enabled && (
-            <Badge variant="accent">
-              <Brain size={10} /> AI
-            </Badge>
-          )}
           <Badge variant="muted">{camera.retention_days}d</Badge>
         </div>
       </div>

@@ -7,20 +7,6 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base import Base, TimestampMixin, UUIDMixin
 
 
-class Detection(UUIDMixin, TimestampMixin, Base):
-    __tablename__ = "detections"
-
-    camera_id: Mapped[str] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("cameras.id", ondelete="CASCADE"), nullable=False
-    )
-    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
-    track_id: Mapped[str | None] = mapped_column(String(100), index=True)
-    detection_type: Mapped[str] = mapped_column(String(50), nullable=False)
-    bbox_json: Mapped[str] = mapped_column(Text, default="[]")
-    score: Mapped[float] = mapped_column(Float, default=0.0)
-    frame_ref: Mapped[str | None] = mapped_column(String(500))
-
-
 class Event(UUIDMixin, TimestampMixin, Base):
     __tablename__ = "events"
 

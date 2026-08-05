@@ -44,16 +44,6 @@ class EventStats(BaseModel):
     alerted_count: int
 
 
-class DetectionOut(BaseModel):
-    id: uuid.UUID
-    camera_id: uuid.UUID
-    timestamp: datetime
-    detection_type: str
-    score: float
-
-    model_config = ConfigDict(from_attributes=True)
-
-
 class EventResponse(BaseModel):
     id: uuid.UUID
     camera_id: uuid.UUID

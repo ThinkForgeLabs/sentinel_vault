@@ -1,14 +1,8 @@
-for the rtsp steam :ffmpeg -f dshow -rtbufsize 100M -i video="USB2.0 FHD UVC WebCam" -vf scale=640:480 -r 15 -c:v libx264 -preset ultrafast -tune zerolatency -b:v 1M -f rtsp rtsp://localhost:8554/webcam
-
-for the backend server : (sentinel_test) C:\Users\marve\Documents\Computer_Related\Sentinel_vault\api>uvicorn app.main:app --reload --port 8000
-
-for the frontend server :(sentinel_test) C:\Users\marve\Documents\Computer_Related\Sentinel_vault\web>npm run dev
-
 <div align="center">
 
 # 🛡️ Sentinel Vault
 
-**Self-hosted surveillance platform for reliable monitoring today and AI-powered security tomorrow.**
+**Self-hosted surveillance platform for reliable, local-first camera monitoring.**
 
 Built with FastAPI · React · PostgreSQL · Redis · FFmpeg
 
@@ -38,7 +32,7 @@ Built with FastAPI · React · PostgreSQL · Redis · FFmpeg
 
 **Sentinel Vault** is a local-first, self-hosted video surveillance system for **USB** and **RTSP/IP** cameras.
 
-It is built to provide the core features you need today:
+It is built to provide the core features you need:
 
 - continuous recording
 - live monitoring
@@ -47,13 +41,6 @@ It is built to provide the core features you need today:
 - user and role management
 - storage retention
 - self-hosted deployment
-
-And it is being designed to grow into an **AI-assisted security platform** with future support for:
-
-- object detection
-- known-person alerts
-- intelligent event filtering
-- smarter notifications
 
 **No cloud required. No subscriptions. Your cameras, your data, your server.**
 
@@ -97,21 +84,6 @@ And it is being designed to grow into an **AI-assisted security platform** with 
 - Alembic database migrations
 - Docker Compose orchestration
 - Structured request logging with correlation IDs
-
----
-
-## 🧠 AI Direction
-
-Sentinel Vault already supports **motion-based detection**, but the long-term goal is to evolve the platform into a more intelligent surveillance system.
-
-Planned AI-driven capabilities include:
-
-- object detection for **person**, **vehicle**, and **animal**
-- known-person recognition and alerts
-- smarter event filtering and prioritization
-- more meaningful notifications based on detected activity
-
-The focus right now is building a **solid, dependable NVR foundation** first — then layering AI on top of it in a practical way.
 
 ---
 
@@ -209,7 +181,7 @@ Create a `.env` file in the project root.
 SECRET_KEY=change-this-to-a-secure-random-value
 DATABASE_URL=postgresql+asyncpg://sentinel:sentinel@localhost:5433/sentinel_vault
 REDIS_URL=redis://localhost:6379/0
-STORAGE_PATH=./data/recordings
+STORAGE_ROOT=./data/recordings
 CORS_ORIGINS=["http://localhost:5173"]
 SEGMENT_DURATION_MINUTES=15
 ```
@@ -220,7 +192,7 @@ SEGMENT_DURATION_MINUTES=15
 SECRET_KEY=change-this-to-a-secure-random-value
 DATABASE_URL=postgresql+asyncpg://sentinel:sentinel@postgres:5432/sentinel_vault
 REDIS_URL=redis://redis:6379/0
-STORAGE_PATH=/data/recordings
+STORAGE_ROOT=/data/recordings
 CORS_ORIGINS=["http://localhost:5173"]
 SEGMENT_DURATION_MINUTES=15
 ```
@@ -422,8 +394,6 @@ ruff format .
 
 ### 🔮 Future
 - ONVIF camera auto-discovery
-- AI object detection (person, vehicle, animal)
-- Face recognition and known-person alerts
 - Mobile app (React Native)
 - Multi-site support with remote access
 - Prometheus metrics and Grafana dashboards

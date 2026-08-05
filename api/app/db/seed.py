@@ -45,7 +45,6 @@ async def seed() -> None:
                 rtsp_url_encrypted=cam_data["rtsp_url"],
                 status="offline",
                 record_enabled=True,
-                ai_enabled=True,
                 retention_days=14,
             )
             session.add(cam)

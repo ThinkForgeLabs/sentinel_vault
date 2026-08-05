@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     storage_root: str = "./data/recordings"
     upload_root: str = "./data/uploads"
     encryption_enabled: bool = True
+    segment_duration_minutes: int = 15
+
+    # CORS
+    cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
     # Auth
     access_token_expire_minutes: int = 30

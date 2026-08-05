@@ -1,4 +1,4 @@
-import { Video, Zap, Bell, Brain } from "lucide-react";
+import { Video, Zap, Bell, HardDrive } from "lucide-react";
 
 interface Stat {
   label: string;
@@ -12,7 +12,7 @@ interface StatCardsProps {
   camerasTotal: number;
   eventsToday: number;
   alertsToday: number;
-  aiDetections: number;
+  recordingsCount: number;
 }
 
 export function StatCards({
@@ -20,13 +20,13 @@ export function StatCards({
   camerasTotal,
   eventsToday,
   alertsToday,
-  aiDetections,
+  recordingsCount,
 }: StatCardsProps) {
   const stats: Stat[] = [
     { label: "Cameras Online", value: `${camerasOnline}/${camerasTotal}`, icon: <Video size={22} />, color: "text-emerald-400" },
     { label: "Events Today", value: eventsToday, icon: <Zap size={22} />, color: "text-cyan-400" },
     { label: "Alerts Sent", value: alertsToday, icon: <Bell size={22} />, color: "text-amber-400" },
-    { label: "AI Detections", value: aiDetections, icon: <Brain size={22} />, color: "text-violet-400" },
+    { label: "Recordings", value: recordingsCount, icon: <HardDrive size={22} />, color: "text-violet-400" },
   ];
 
   return (

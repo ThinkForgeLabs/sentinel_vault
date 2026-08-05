@@ -1,4 +1,5 @@
 import asyncio
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
@@ -74,7 +75,7 @@ async def test_cam_connection(
 
 @router.get("/{camera_id}/stream")
 async def stream_camera(
-    camera_id: str,
+    camera_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
 ):
     camera = await get_camera(db, camera_id)
@@ -105,7 +106,7 @@ async def _async_frames(source: str):
 
 @router.get("/{camera_id}", response_model=CameraDetail)
 async def get_camera_detail(
-    camera_id: str,
+    camera_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
@@ -114,7 +115,7 @@ async def get_camera_detail(
 
 @router.put("/{camera_id}", response_model=CameraOut)
 async def edit_camera(
-    camera_id: str,
+    camera_id: uuid.UUID,
     body: CameraUpdate,
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
@@ -124,7 +125,7 @@ async def edit_camera(
 
 @router.delete("/{camera_id}", status_code=204)
 async def remove_camera(
-    camera_id: str,
+    camera_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
 ):

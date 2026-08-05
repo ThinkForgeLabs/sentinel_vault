@@ -8,7 +8,6 @@ const SECTIONS = [
   "General",
   "Storage",
   "Cameras",
-  "AI & Models",
   "Privacy",
   "Accounts",
   "Updates",

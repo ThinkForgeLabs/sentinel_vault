@@ -26,7 +26,6 @@ export function CameraForm({ onSuccess, onCancel }: CameraFormProps) {
     location_label: "",
     rtsp_url: "",
     record_enabled: true,
-    ai_enabled: false,
     retention_days: 14,
   });
 

@@ -9,7 +9,6 @@ class CameraCreate(BaseModel):
     location_label: str = ""
     rtsp_url: str = Field(..., min_length=1)
     record_enabled: bool = True
-    ai_enabled: bool = False
     retention_days: int = Field(default=14, ge=1, le=365)
 
 
@@ -18,7 +17,6 @@ class CameraUpdate(BaseModel):
     location_label: str | None = None
     rtsp_url: str | None = None
     record_enabled: bool | None = None
-    ai_enabled: bool | None = None
     retention_days: int | None = None
     status: str | None = None
 
@@ -29,7 +27,6 @@ class CameraOut(BaseModel):
     location_label: str
     status: str
     record_enabled: bool
-    ai_enabled: bool
     retention_days: int
     created_at: datetime
 

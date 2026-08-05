@@ -1,8 +1,17 @@
-import cv2
-import numpy as np
+import os
 import threading
 import time
 from typing import Optional
+
+import cv2
+import numpy as np
+
+# Bound how long FFmpeg-backed opens/reads (RTSP/HTTP sources) will wait,
+# so an unreachable or misconfigured camera can't hang a capture thread
+# forever. Values are in microseconds per the ffmpeg 'stimeout' AVOption.
+os.environ.setdefault(
+    "OPENCV_FFMPEG_CAPTURE_OPTIONS", "rtsp_transport;tcp|stimeout;5000000"
+)
 
 
 class CaptureManager:

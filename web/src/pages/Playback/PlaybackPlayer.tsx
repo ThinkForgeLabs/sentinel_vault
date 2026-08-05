@@ -73,7 +73,11 @@ export function PlaybackPlayer({
   const togglePlay = useCallback(() => {
     const video = videoRef.current;
     if (!video || !segment) return;
-    video.paused ? video.play().catch(() => {}) : video.pause();
+    if (video.paused) {
+      video.play().catch(() => {});
+    } else {
+      video.pause();
+    }
   }, [segment]);
 
   const handleTimeUpdate = useCallback(() => {

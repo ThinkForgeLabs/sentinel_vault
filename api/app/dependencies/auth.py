@@ -1,3 +1,5 @@
+import uuid
+
 from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
@@ -23,7 +25,15 @@ async def get_current_user(
     if user_id is None:
         raise UnauthorizedError("Invalid token payload")
 
-    user = await db.get(User, user_id)
+    # JWT "sub" is always a string per spec, but the id column is a native
+    # UUID type -- convert before querying so the driver's UUID bind
+    # processor (which expects a uuid.UUID, not a str) doesn't blow up.
+    try:
+        user_pk = uuid.UUID(user_id)
+    except (ValueError, AttributeError, TypeError):
+        raise UnauthorizedError("Invalid token payload")
+
+    user = await db.get(User, user_pk)
     if user is None or not user.is_active:
         raise UnauthorizedError("User not found or inactive")
 

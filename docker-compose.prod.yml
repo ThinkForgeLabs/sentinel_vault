@@ -1,0 +1,80 @@
+version: "3.9"
+
+# Production compose file. Differences from docker-compose.yml (dev):
+#   - Postgres requires a real password (no POSTGRES_HOST_AUTH_METHOD: trust)
+#   - API runs without --reload and without the source bind-mount
+#   - Nginx-fronted web container serves the built SPA and proxies /api to the API
+#   - No host ports are published for postgres/redis; only nginx (web) is exposed
+#
+# Required environment variables (set in your shell or a deploy-time .env):
+#   POSTGRES_PASSWORD, SECRET_KEY  (see .env.example for the full list)
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: sv-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sentinel
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+      POSTGRES_DB: sentinel_vault
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sentinel -d sentinel_vault"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: sv-redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: sv-api
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: production
+      DEBUG: "false"
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set}
+      DATABASE_URL: postgresql+asyncpg://sentinel:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/sentinel_vault
+      REDIS_URL: redis://redis:6379/0
+      CORS_ORIGINS: ${CORS_ORIGINS:-["http://localhost"]}
+      STORAGE_ROOT: /data/recordings
+      UPLOAD_ROOT: /data/uploads
+    volumes:
+      - recordings_data:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: sv-web
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+
+volumes:
+  pg_data:
+  redis_data:
+  recordings_data:

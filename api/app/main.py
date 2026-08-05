@@ -18,9 +18,10 @@ from app.modules.cameras.capture_manager import capture_manager
 from app.modules.events.router import router as events_router
 from app.modules.playback.router import router as playback_router
 from app.modules.settings.router import router as settings_router
-from app.modules.recordings.routes import router as recordings_router
+from app.modules.recordings.router import router as recordings_router
 from app.modules.recordings.recording_manager import recording_manager
 from app.modules.recordings.tasks import (
+    camera_status_sync_loop,
     flush_segments_loop,
     retention_cleanup_loop,
     start_recording_for_enabled_cameras,
@@ -71,6 +72,8 @@ async def _final_flush_segments():
 
 async def _final_flush_events():
     """Persist any motion events still in the queue."""
+    import json
+
     from app.modules.events.model import Event
 
     events = recording_manager.drain_motion_events()
@@ -79,18 +82,20 @@ async def _final_flush_events():
     try:
         async with async_session_factory() as db:
             for ev in events:
+                clip_duration = ev.get("clip_duration_seconds")
                 db.add(Event(
                     id=ev["id"],
                     camera_id=ev["camera_id"],
-                    event_type=ev["event_type"],
+                    event_type=ev.get("event_type", "motion"),
+                    subtype=ev.get("subtype", "frame_diff"),
                     started_at=ev["started_at"],
                     ended_at=ev["ended_at"],
                     confidence=ev["confidence"],
                     importance=ev["importance"],
                     thumbnail_path=ev.get("thumbnail_path"),
                     clip_path=ev.get("clip_path"),
-                    clip_duration_seconds=ev.get("clip_duration_seconds"),
-                    metadata=ev.get("metadata"),
+                    clip_duration_seconds=round(clip_duration) if clip_duration is not None else None,
+                    metadata_json=json.dumps(ev.get("metadata", {})),
                 ))
             await db.commit()
         logger.info(f"Shutdown: flushed {len(events)} final events")
@@ -98,9 +103,20 @@ async def _final_flush_events():
         logger.warning(f"Shutdown: event flush failed: {e}")
 
 
+PLACEHOLDER_SECRET_KEY = "change-me-to-a-random-64-char-string"
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging()
+
+    if settings.environment != "development" and settings.secret_key == PLACEHOLDER_SECRET_KEY:
+        raise RuntimeError(
+            "Refusing to start: SECRET_KEY is still the placeholder value. "
+            "Set a real random SECRET_KEY in the environment before running "
+            "outside of development."
+        )
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
@@ -108,6 +124,7 @@ async def lifespan(app: FastAPI):
     await start_recording_for_enabled_cameras()
     task_flush = asyncio.create_task(flush_segments_loop())
     task_retention = asyncio.create_task(retention_cleanup_loop())
+    task_status_sync = asyncio.create_task(camera_status_sync_loop())
 
     # ── Detection startup ──
     async with async_session_factory() as db:
@@ -140,6 +157,7 @@ async def lifespan(app: FastAPI):
     # 4. Cancel background loop tasks (nothing left to flush)
     await _cancel_task(task_flush, "flush_segments_loop")
     await _cancel_task(task_retention, "retention_cleanup_loop")
+    await _cancel_task(task_status_sync, "camera_status_sync_loop")
     await _cancel_task(task_motion_drain, "motion_event_drain_loop")
 
     # 5. Release camera hardware
@@ -162,7 +180,7 @@ app = FastAPI(
 # ── Middleware ──
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

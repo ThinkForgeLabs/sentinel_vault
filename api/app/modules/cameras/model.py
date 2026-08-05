@@ -13,7 +13,6 @@ class Camera(UUIDMixin, TimestampMixin, Base):
     rtsp_url_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(String(50), default="offline")
     record_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
-    ai_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     retention_days: Mapped[int] = mapped_column(Integer, default=14)
 
     zones: Mapped[list["CameraZone"]] = relationship(

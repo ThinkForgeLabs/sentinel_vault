@@ -6,6 +6,7 @@ import { RecentEvents } from "./RecentEvents";
 import { Spinner } from "@/components/ui/Spinner";
 import { camerasApi } from "@/api/cameras";
 import { eventsApi } from "@/api/events";
+import { storageApi } from "@/api/storage";
 import type { Camera } from "@/types/camera";
 import type { CameraEvent, EventStats } from "@/types/event";
 
@@ -13,19 +14,22 @@ export default function DashboardPage() {
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [events, setEvents] = useState<CameraEvent[]>([]);
   const [stats, setStats] = useState<EventStats | null>(null);
+  const [recordingsCount, setRecordingsCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
       try {
-        const [cams, evts, st] = await Promise.all([
+        const [cams, evts, st, storage] = await Promise.all([
           camerasApi.list(),
           eventsApi.list({ page: 1 }),
           eventsApi.stats(),
+          storageApi.stats(),
         ]);
         setCameras(cams);
         setEvents(evts);
         setStats(st);
+        setRecordingsCount(storage.recordings_count);
       } catch {
         // In dev mode without API, we just show empty state
       } finally {
@@ -52,7 +56,7 @@ export default function DashboardPage() {
               camerasTotal={cameras.length}
               eventsToday={stats?.total_today ?? 0}
               alertsToday={stats?.alerted_count ?? 0}
-              aiDetections={stats?.total_today ?? 0}
+              recordingsCount={recordingsCount}
             />
             <PageHeader title="Recent Events" />
             <RecentEvents events={events.slice(0, 6)} />

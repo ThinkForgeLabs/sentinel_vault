@@ -1,3 +1,5 @@
+import uuid
+
 from sqlalchemy import select, delete as sa_delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -14,7 +16,7 @@ async def list_cameras(db: AsyncSession) -> list[Camera]:
     return list(result.scalars().all())
 
 
-async def get_camera(db: AsyncSession, camera_id: str) -> Camera:
+async def get_camera(db: AsyncSession, camera_id: uuid.UUID) -> Camera:
     result = await db.execute(
         select(Camera).options(selectinload(Camera.zones)).where(Camera.id == camera_id)
     )
@@ -31,27 +33,53 @@ async def create_camera(db: AsyncSession, data: CameraCreate) -> Camera:
         location_label=data.location_label,
         rtsp_url_encrypted=data.rtsp_url,
         record_enabled=data.record_enabled,
-        ai_enabled=data.ai_enabled,
         retention_days=data.retention_days,
         status="online" if is_usb else "offline",
     )
     db.add(camera)
     await db.flush()
+
+    from app.modules.detection.manager import DetectionManager
+    DetectionManager.get_instance().register(str(camera.id))
+
+    if camera.record_enabled:
+        from app.modules.recordings.recording_manager import recording_manager
+        recording_manager.start_recording(
+            str(camera.id), camera.rtsp_url_encrypted, camera.retention_days
+        )
+
     return camera
 
 
-async def update_camera(db: AsyncSession, camera_id: str, data: CameraUpdate) -> Camera:
+async def update_camera(db: AsyncSession, camera_id: uuid.UUID, data: CameraUpdate) -> Camera:
     camera = await get_camera(db, camera_id)
     updates = data.model_dump(exclude_unset=True)
+
+    needs_restart = "rtsp_url" in updates or "retention_days" in updates
+
     if "rtsp_url" in updates:
         updates["rtsp_url_encrypted"] = updates.pop("rtsp_url")
     for key, value in updates.items():
         setattr(camera, key, value)
     await db.flush()
+
+    from app.modules.recordings.recording_manager import recording_manager
+
+    if not camera.record_enabled:
+        recording_manager.stop_recording(str(camera.id))
+    elif "record_enabled" in updates or needs_restart:
+        # (Re)start with the latest source/retention. start_recording is a
+        # no-op if already running with the same camera_id, so stop first
+        # whenever the source or retention window may have changed.
+        recording_manager.stop_recording(str(camera.id))
+        recording_manager.start_recording(
+            str(camera.id), camera.rtsp_url_encrypted, camera.retention_days
+        )
+
     return camera
 
 
-async def delete_camera(db: AsyncSession, camera_id: str) -> None:
+async def delete_camera(db: AsyncSession, camera_id: uuid.UUID) -> None:
     camera = await get_camera(db, camera_id)
 
     # Stop recording and detection before deleting
@@ -68,10 +96,9 @@ async def delete_camera(db: AsyncSession, camera_id: str) -> None:
     # The ORM's backref="recordings" causes SQLAlchemy to try SET NULL
     # at the Python level before SQL reaches the DB, violating NOT NULL.
     # Bulk deletes bypass the ORM identity map and go straight to SQL.
-    from app.modules.events.model import Detection, Event
+    from app.modules.events.model import Event
     from app.modules.recordings.model import Recording
 
-    await db.execute(sa_delete(Detection).where(Detection.camera_id == cam_id))
     await db.execute(sa_delete(Event).where(Event.camera_id == cam_id))
     await db.execute(sa_delete(Recording).where(Recording.camera_id == cam_id))
 

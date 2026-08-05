@@ -36,4 +36,5 @@ async def test_me_endpoint(client: AsyncClient, auth_headers):
 @pytest.mark.asyncio
 async def test_me_without_auth(client: AsyncClient):
     resp = await client.get("/api/v1/auth/me")
-    assert resp.status_code == 403
+    # FastAPI's HTTPBearer raises 401 (not 403) for missing credentials.
+    assert resp.status_code == 401

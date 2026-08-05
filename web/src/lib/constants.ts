@@ -1,13 +1,6 @@
 export const API_URL = import.meta.env.VITE_API_URL ?? "/api/v1";
 
-export const EVENT_TYPES = [
-  "person_detected",
-  "vehicle_detected",
-  "pet_detected",
-  "package_delivered",
-  "arrival_home",
-  "motion",
-] as const;
+export const EVENT_TYPES = ["motion", "camera_offline"] as const;
 
 export const IMPORTANCE_LEVELS = ["low", "medium", "high", "critical"] as const;
 

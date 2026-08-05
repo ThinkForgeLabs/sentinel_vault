@@ -33,7 +33,11 @@ async def motion_event_drain_loop():
                                 importance=ev.get("importance", "low"),
                                 thumbnail_path=ev.get("thumbnail_path"),
                                 clip_path=ev.get("clip_path"),
-                                clip_duration_seconds=ev.get("clip_duration_seconds"),
+                                clip_duration_seconds=(
+                                    round(ev["clip_duration_seconds"])
+                                    if ev.get("clip_duration_seconds") is not None
+                                    else None
+                                ),
                                 metadata_json=json.dumps(ev.get("metadata", {})),
                             )
                             db.add(event)

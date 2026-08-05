@@ -88,8 +88,12 @@ async def create_motion_event(db: AsyncSession, event_data: dict) -> Event:
         confidence=event_data.get("confidence", 0.0),
         importance=event_data.get("importance", "low"),
         thumbnail_path=event_data.get("thumbnail_path"),
-        clip_path=None,
-        clip_duration_seconds=None,
+        clip_path=event_data.get("clip_path"),
+        clip_duration_seconds=(
+            round(event_data["clip_duration_seconds"])
+            if event_data.get("clip_duration_seconds") is not None
+            else None
+        ),
         alerted=False,
         review_status="pending",
         metadata_json=json.dumps(event_data.get("metadata", {})),

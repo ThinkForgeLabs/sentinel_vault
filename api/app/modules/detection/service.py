@@ -6,6 +6,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.settings.service import upsert_setting, get_setting
+from app.modules.settings.schemas import SettingUpdate
 from .schemas import MotionSettingsRead, MotionSettingsUpdate
 from .manager import DetectionManager
 
@@ -27,7 +28,7 @@ async def get_motion_settings(
 ) -> MotionSettingsRead:
     raw = await get_setting(db, _key(camera_id))
     if raw:
-        data = json.loads(raw)
+        data = json.loads(raw.value_json)
         data.pop("cooldown_seconds", None)  # strip legacy key
     else:
         data = DEFAULTS.copy()
@@ -43,7 +44,7 @@ async def update_motion_settings(
     for field_name, value in update.model_dump(exclude_unset=True).items():
         merged[field_name] = value
 
-    await upsert_setting(db, _key(camera_id), json.dumps(merged))
+    await upsert_setting(db, _key(camera_id), SettingUpdate(value_json=json.dumps(merged)))
 
     DetectionManager.get_instance().update_config(str(camera_id), **merged)
 

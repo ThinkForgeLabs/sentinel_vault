@@ -1,3 +1,5 @@
+import uuid
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -29,7 +31,7 @@ async def add_user(
 
 @router.put("/{user_id}", response_model=UserOut)
 async def edit_user(
-    user_id: str,
+    user_id: uuid.UUID,
     body: UserUpdate,
     db: AsyncSession = Depends(get_db),
     _: User = Depends(require_owner),

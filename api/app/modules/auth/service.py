@@ -1,3 +1,5 @@
+import uuid
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -39,7 +41,13 @@ async def refresh_tokens(db: AsyncSession, refresh_token: str) -> TokenResponse:
     if payload is None or payload.get("type") != "refresh":
         raise UnauthorizedError("Invalid refresh token")
 
-    user = await db.get(User, payload["sub"])
+    # "sub" is always a string in the JWT; the id column is a native UUID.
+    try:
+        user_pk = uuid.UUID(payload["sub"])
+    except (ValueError, AttributeError, TypeError, KeyError):
+        raise UnauthorizedError("Invalid refresh token")
+
+    user = await db.get(User, user_pk)
     if user is None or not user.is_active:
         raise UnauthorizedError("User not found")
 
