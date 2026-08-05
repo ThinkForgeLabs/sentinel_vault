@@ -284,6 +284,48 @@ docker compose down -v
 
 ---
 
+## 🚢 Production Deployment
+
+`docker-compose.prod.yml` runs the full stack as four containers: Postgres, Redis, the API, and an Nginx-fronted build of the web app that reverse-proxies `/api` to the API. No database/cache ports are published to the host, and the API waits for Postgres and Redis to report healthy before starting.
+
+**Option A — build from source on the deploy machine:**
+
+```bash
+git clone <repo-url> && cd sentinel_vault
+cp .env.example .env   # fill in POSTGRES_PASSWORD, SECRET_KEY, CORS_ORIGINS
+export $(grep -v '^#' .env | xargs)
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+**Option B — pull prebuilt images (no build step, no source checkout):**
+
+Every push to `main` that passes CI publishes tagged images to GitHub Container Registry (`ghcr.io/thinkforgelabs/sentinel_vault-api` and `-web`, tagged `latest` and by commit SHA). To deploy from those instead of building locally, swap the `build:` blocks in `docker-compose.prod.yml` for `image:` references, e.g.:
+
+```yaml
+api:
+  image: ghcr.io/thinkforgelabs/sentinel_vault-api:latest
+web:
+  image: ghcr.io/thinkforgelabs/sentinel_vault-web:latest
+```
+
+then run:
+
+```bash
+export POSTGRES_PASSWORD=... SECRET_KEY=...
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d
+```
+
+On every deploy, run pending Alembic migrations against the running Postgres container:
+
+```bash
+docker compose -f docker-compose.prod.yml exec api alembic upgrade head
+```
+
+**Note:** the current setup terminates TLS nowhere — `web` serves plain HTTP on port 80. Put it behind a TLS-terminating reverse proxy (e.g. Caddy, or Nginx + certbot) if it's reachable from the public internet.
+
+---
+
 ## 🔌 Core API Areas
 
 Sentinel Vault is organized around these main backend modules:
