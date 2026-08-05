@@ -293,9 +293,15 @@ docker compose down -v
 ```bash
 git clone <repo-url> && cd sentinel_vault
 cp .env.example .env   # fill in POSTGRES_PASSWORD, SECRET_KEY, CORS_ORIGINS
-export $(grep -v '^#' .env | xargs)
 docker compose -f docker-compose.prod.yml up -d --build
 ```
+
+Compose automatically loads variables from a `.env` file in the same
+directory as the compose file -- no manual `export` needed. Don't use
+`export $(grep -v '^#' .env | xargs)` to load it into your shell: word
+splitting strips the quotes from values like `CORS_ORIGINS`, and a
+shell-exported variable then silently overrides the correct `.env` value
+(shell env takes precedence over `.env` in Compose's resolution order).
 
 **Option B — pull prebuilt images (no build step, no source checkout):**
 
@@ -311,7 +317,7 @@ web:
 then run:
 
 ```bash
-export POSTGRES_PASSWORD=... SECRET_KEY=...
+# still via a .env file, not manual export -- see the note above
 docker compose -f docker-compose.prod.yml pull
 docker compose -f docker-compose.prod.yml up -d
 ```
