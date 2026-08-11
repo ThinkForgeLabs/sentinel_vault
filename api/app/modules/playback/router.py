@@ -12,8 +12,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.dependencies.auth import get_current_user
 from app.modules.auth.model import User
-from app.modules.playback.schemas import AvailabilityResponse, StreamInfo
-from app.modules.playback.service import get_availability, get_stream_info
+from app.modules.playback.schemas import (
+    AvailabilityResponse,
+    BatchAvailabilityRequest,
+    BatchAvailabilityResponse,
+    StreamInfo,
+    TimelineEventsResponse,
+)
+from app.modules.playback.service import (
+    get_availability,
+    get_batch_availability,
+    get_stream_info,
+    get_timeline_events,
+)
 from app.modules.recordings.model import Recording
 
 router = APIRouter()
@@ -28,6 +39,31 @@ async def playback_availability(
     _: User = Depends(get_current_user),
 ):
     return await get_availability(db, camera_id, start, end)
+
+
+@router.post("/availability/batch", response_model=BatchAvailabilityResponse)
+async def playback_availability_batch(
+    body: BatchAvailabilityRequest,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """Multicamera wall view: fetch every tile's availability segments in
+    one call so scrubbing stays in sync across cameras."""
+    return await get_batch_availability(db, body)
+
+
+@router.get("/timeline/events", response_model=TimelineEventsResponse)
+async def playback_timeline_events(
+    camera_id: list[uuid.UUID] = Query(...),
+    start: datetime = Query(...),
+    end: datetime = Query(...),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """Event markers (motion, camera_offline, etc.) for the Frigate-style
+    timeline. Accepts one or more camera_id query params."""
+    events = await get_timeline_events(db, camera_id, start, end)
+    return TimelineEventsResponse(events=events)
 
 
 @router.get("/stream/{camera_id}", response_model=StreamInfo)

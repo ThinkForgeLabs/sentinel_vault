@@ -15,8 +15,10 @@ from app.db.session import async_session_factory
 from app.modules.cameras.model import Camera
 from app.modules.detection.manager import DetectionManager
 from app.modules.events.model import Event
+from app.modules.realtime.schemas import AlertMessage
 from app.modules.recordings.model import Recording
 from app.modules.recordings.recording_manager import recording_manager
+from app.services.notifications import dispatch_event_alert
 
 logger = get_logger("recordings.tasks")
 
@@ -90,28 +92,64 @@ async def camera_status_sync_loop() -> None:
             if changes:
                 async with async_session_factory() as db:
                     try:
+                        alerts: list[tuple[AlertMessage, Event | None]] = []
                         for camera_id, status in changes:
                             camera = await db.get(Camera, camera_id)
                             if camera is None or camera.status == status:
                                 continue
                             camera.status = status
+                            now = datetime.now(timezone.utc)
                             if status == "offline":
-                                now = datetime.now(timezone.utc)
-                                db.add(
-                                    Event(
-                                        id=uuid.uuid4(),
-                                        camera_id=camera_id,
-                                        event_type="camera_offline",
-                                        subtype=None,
-                                        started_at=now,
-                                        ended_at=None,
-                                        confidence=0.0,
-                                        importance="high",
-                                        review_status="pending",
-                                        metadata_json="{}",
+                                offline_event = Event(
+                                    id=uuid.uuid4(),
+                                    camera_id=camera_id,
+                                    event_type="camera_offline",
+                                    subtype=None,
+                                    started_at=now,
+                                    ended_at=None,
+                                    confidence=0.0,
+                                    importance="high",
+                                    review_status="pending",
+                                    metadata_json="{}",
+                                )
+                                db.add(offline_event)
+                                alerts.append(
+                                    (
+                                        AlertMessage(
+                                            event_id=str(offline_event.id),
+                                            camera_id=str(camera_id),
+                                            camera_name=camera.name,
+                                            event_type="camera_offline",
+                                            importance="high",
+                                            started_at=now.isoformat(),
+                                        ),
+                                        offline_event,
+                                    )
+                                )
+                            else:
+                                alerts.append(
+                                    (
+                                        AlertMessage(
+                                            camera_id=str(camera_id),
+                                            camera_name=camera.name,
+                                            event_type="camera_online",
+                                            importance="low",
+                                            started_at=now.isoformat(),
+                                        ),
+                                        None,
                                     )
                                 )
                         await db.commit()
+
+                        # ── Real-time alert fan-out (after commit) ──
+                        for alert, related_event in alerts:
+                            try:
+                                await dispatch_event_alert(db, alert)
+                                if related_event is not None:
+                                    related_event.alerted = True
+                                    await db.commit()
+                            except Exception as exc:
+                                logger.warning("Failed to dispatch camera status alert: %s", exc)
                     except Exception as exc:
                         await db.rollback()
                         logger.error("Failed to sync camera status: %s", exc, exc_info=True)

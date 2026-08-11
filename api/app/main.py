@@ -29,6 +29,7 @@ from app.modules.recordings.tasks import (
 from app.modules.detection.routes import router as detection_router
 from app.modules.detection.service import init_detectors
 from app.modules.events.drain_task import motion_event_drain_loop
+from app.modules.realtime.router import router as realtime_router
 
 logger = logging.getLogger(__name__)
 
@@ -200,6 +201,7 @@ app.include_router(playback_router, prefix=f"{PREFIX}/playback", tags=["Playback
 app.include_router(settings_router, prefix=f"{PREFIX}/settings", tags=["Settings"])
 app.include_router(recordings_router, prefix=f"{PREFIX}/recordings", tags=["Recordings"])
 app.include_router(detection_router, prefix=f"{PREFIX}/detection", tags=["Detection"])
+app.include_router(realtime_router, prefix=f"{PREFIX}/realtime", tags=["Realtime"])
 
 
 @app.get(f"{PREFIX}/system/health")

@@ -26,12 +26,20 @@ class MotionDetector:
         threshold: int = 25,
         min_contour_area: int = 500,
         blur_kernel: int = 21,
+        downscale_factor: float = 1.0,
+        frame_skip: int = 0,
     ):
         self.camera_id = camera_id
         self.enabled = enabled
         self.threshold = threshold
         self.min_contour_area = min_contour_area
         self.blur_kernel = blur_kernel
+        # Low-overhead knobs for constrained hardware (e.g. Raspberry Pi 5):
+        # downscale_factor shrinks the frame before diffing (0.25-1.0), and
+        # frame_skip processes only every Nth frame, leaving the rest
+        # untouched to save CPU.
+        self.downscale_factor = downscale_factor
+        self.frame_skip = frame_skip
 
         self._prev_gray: Optional[np.ndarray] = None
         self._last_trigger: float = 0.0
@@ -49,8 +57,22 @@ class MotionDetector:
 
         self._frame_count += 1
 
+        # ── Frame skip: only run the (relatively expensive) diff pipeline
+        #    every Nth frame. Skipped frames are simply ignored rather than
+        #    diffed against a stale reference, avoiding false positives
+        #    from the larger time delta between compared frames. ──
+        if self.frame_skip > 0 and (self._frame_count - 1) % (self.frame_skip + 1) != 0:
+            return None
+
+        scale = self.downscale_factor
+        work_frame = frame
+        if scale < 1.0:
+            work_frame = cv2.resize(
+                frame, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA
+            )
+
         try:
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            gray = cv2.cvtColor(work_frame, cv2.COLOR_BGR2GRAY)
             gray = cv2.GaussianBlur(
                 gray, (self.blur_kernel, self.blur_kernel), 0
             )
@@ -81,9 +103,15 @@ class MotionDetector:
             thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
         )
 
+        # min_contour_area is expressed in full-resolution pixels; when
+        # working on a downscaled frame, contour areas shrink by scale^2,
+        # so scale the comparison threshold down to match rather than
+        # changing detection sensitivity as a side effect of performance
+        # tuning.
+        effective_min_area = self.min_contour_area * (scale ** 2)
         significant = [
             c for c in contours
-            if cv2.contourArea(c) >= self.min_contour_area
+            if cv2.contourArea(c) >= effective_min_area
         ]
 
         # ── Periodic debug stats ──
@@ -110,11 +138,20 @@ class MotionDetector:
         now = time.time()
         self._last_trigger = now
 
-        total_area = sum(cv2.contourArea(c) for c in significant)
+        # Areas/boxes were computed on the (possibly downscaled) work
+        # frame; scale them back up to full-resolution coordinates so
+        # downstream consumers (overlays, clip cropping) don't need to
+        # know the detector's internal scale factor.
+        inv_scale = 1.0 / scale if scale > 0 else 1.0
+        total_area = sum(cv2.contourArea(c) for c in significant) * (inv_scale ** 2)
         bounding_boxes = [
-            list(cv2.boundingRect(c)) for c in significant
+            [int(round(v * inv_scale)) for v in cv2.boundingRect(c)]
+            for c in significant
         ]
 
+        # Snapshot is always encoded from the original full-resolution
+        # frame, never the downscaled working copy, so alert thumbnails
+        # stay sharp regardless of the performance tuning in effect.
         _, jpeg_buf = cv2.imencode(
             ".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 85]
         )

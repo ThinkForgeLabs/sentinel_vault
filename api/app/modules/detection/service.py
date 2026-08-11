@@ -16,6 +16,8 @@ DEFAULTS = {
     "enabled": True,
     "threshold": 25,
     "min_contour_area": 500,
+    "downscale_factor": 1.0,
+    "frame_skip": 0,
 }
 
 
@@ -61,5 +63,7 @@ async def init_detectors(db: AsyncSession, camera_ids: list[str]):
             enabled=settings.enabled,
             threshold=settings.threshold,
             min_contour_area=settings.min_contour_area,
+            downscale_factor=settings.downscale_factor,
+            frame_skip=settings.frame_skip,
         )
     logger.info("Initialized %d motion detectors", len(camera_ids))
