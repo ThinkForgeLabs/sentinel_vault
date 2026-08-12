@@ -1,4 +1,3 @@
-import asyncio
 import shutil
 import subprocess
 import uuid
@@ -26,6 +25,7 @@ from app.modules.playback.service import (
     get_timeline_events,
 )
 from app.modules.recordings.model import Recording
+from app.services.video_crypto import cleanup_task, ensure_playable_encrypted
 
 router = APIRouter()
 
@@ -76,8 +76,11 @@ async def playback_stream(
 
 # ── Video file serving (with automatic ffmpeg transcode for .avi) ──
 
-def _transcode_to_h264(source: Path, dest: Path) -> None:
-    """Blocking call — run inside asyncio.to_thread."""
+def _transcode_to_h264(source: str, dest: str) -> None:
+    """Blocking call — run inside asyncio.to_thread. `source`/`dest` are
+    plain (already-decrypted) temp file paths handed to us by
+    ensure_playable_encrypted; the encrypted original never touches
+    ffmpeg directly."""
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
         raise RuntimeError(
@@ -87,14 +90,14 @@ def _transcode_to_h264(source: Path, dest: Path) -> None:
     subprocess.run(
         [
             ffmpeg, "-y",
-            "-i", str(source),
+            "-i", source,
             "-c:v", "libx264",
             "-preset", "ultrafast",
             "-crf", "23",
             "-an",                          # webcams rarely have useful audio
             "-movflags", "+faststart",
             "-f", "mp4",
-            str(dest),
+            dest,
         ],
         check=True,
         capture_output=True,
@@ -114,19 +117,21 @@ async def serve_recording_video(
     if not source.exists():
         raise HTTPException(status_code=404, detail="Recording file missing from disk")
 
-    # Always serve an H.264 transcode — the original codec is not browser-playable
-    transcoded = source.with_name(source.stem + ".h264.mp4")
+    # Always serve an H.264 transcode — the original codec is not
+    # browser-playable. The recording on disk is encrypted at rest, so
+    # transcoding happens against a temp decrypted copy, and the cached
+    # transcode output is re-encrypted before being written to disk.
+    cache_path = source.with_name(source.stem + ".h264.mp4")
 
-    if not transcoded.exists():
-        try:
-            await asyncio.to_thread(_transcode_to_h264, source, transcoded)
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc))
-        except subprocess.CalledProcessError as exc:
-            stderr = exc.stderr.decode() if isinstance(exc.stderr, bytes) else str(exc.stderr)
-            raise HTTPException(
-                status_code=500,
-                detail=f"ffmpeg failed: {stderr[:500]}",
-            )
+    try:
+        temp_path = await ensure_playable_encrypted(source, cache_path, _transcode_to_h264)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    except subprocess.CalledProcessError as exc:
+        stderr = exc.stderr.decode() if isinstance(exc.stderr, bytes) else str(exc.stderr)
+        raise HTTPException(
+            status_code=500,
+            detail=f"ffmpeg failed: {stderr[:500]}",
+        )
 
-    return FileResponse(transcoded, media_type="video/mp4")
+    return FileResponse(temp_path, media_type="video/mp4", background=cleanup_task(temp_path))

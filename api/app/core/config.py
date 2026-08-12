@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     encryption_enabled: bool = True
     segment_duration_minutes: int = 15
 
+    # Local at-rest encryption — where the key-encrypting key (KEK) and the
+    # wrapped data-encryption key (DEK) are stored. See app/core/crypto.py.
+    keys_root: str = "./data/keys"
+
     # CORS
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 

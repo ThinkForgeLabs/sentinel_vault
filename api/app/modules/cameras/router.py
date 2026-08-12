@@ -6,6 +6,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 import cv2
 
+from app.core import crypto
 from app.db.session import get_db
 from app.dependencies.auth import get_current_user
 from app.modules.auth.model import User
@@ -45,9 +46,9 @@ async def get_cameras(
 async def add_camera(
     body: CameraCreate,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
-    return await create_camera(db, body)
+    return await create_camera(db, body, actor_id=str(current_user.id))
 
 
 # ── Discovery ──
@@ -79,7 +80,7 @@ async def stream_camera(
     db: AsyncSession = Depends(get_db),
 ):
     camera = await get_camera(db, camera_id)
-    source = camera.rtsp_url_encrypted
+    source = crypto.decrypt_str(camera.rtsp_url_encrypted)
 
     return StreamingResponse(
         _async_frames(source),
@@ -118,18 +119,18 @@ async def edit_camera(
     camera_id: uuid.UUID,
     body: CameraUpdate,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
-    return await update_camera(db, camera_id, body)
+    return await update_camera(db, camera_id, body, actor_id=str(current_user.id))
 
 
 @router.delete("/{camera_id}", status_code=204)
 async def remove_camera(
     camera_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
-    await delete_camera(db, camera_id)
+    await delete_camera(db, camera_id, actor_id=str(current_user.id))
 
 
 # ── Helpers ──

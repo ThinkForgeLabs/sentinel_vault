@@ -6,17 +6,20 @@ Windows-safe transcoding via subprocess.run in a thread-pool.
 
 import asyncio
 import logging
+import os
 import shutil
 import subprocess
+import tempfile
 import uuid
 from datetime import datetime, date
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy import select, func, and_, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import crypto
 from app.db.session import get_db
 from app.dependencies.auth import get_current_user
 from app.modules.events.model import Event
@@ -25,6 +28,7 @@ from app.modules.events.schemas import (
     EventUpdate,
     EventStats,
 )
+from app.services.video_crypto import cleanup_task, decrypt_to_temp
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["events"])
@@ -59,39 +63,53 @@ def _transcode_sync(
 
 async def _ensure_h264(src: Path) -> Path:
     """
-    Return a browser-playable H.264 / MP4 path.
-    Transcodes once then serves from cache.  Falls back to the original
-    file if ffmpeg is missing or fails.
+    Return a path to a temporary, browser-playable, DECRYPTED copy of the
+    clip at `src`. Transcodes once then caches the transcoded output —
+    encrypted, like every other file on disk — for next time. Falls
+    back to serving the (still decrypted-to-temp) original clip if
+    ffmpeg is missing or fails.
+
+    The caller owns the returned temp file and must delete it once the
+    response has been sent (see cleanup_task).
     """
-    dest = src.with_suffix(".browser.mp4")
-    if dest.exists() and dest.stat().st_size > 0:
-        return dest
+    cache_path = src.with_suffix(".browser.mp4")
+    if cache_path.exists() and cache_path.stat().st_size > 0:
+        return decrypt_to_temp(cache_path, suffix=".mp4")
 
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
         logger.warning("ffmpeg not on PATH – serving original clip")
-        return src
+        return decrypt_to_temp(src, suffix=src.suffix)
 
-    logger.info("Transcoding %s → %s", src.name, dest.name)
+    logger.info("Transcoding %s → %s", src.name, cache_path.name)
 
-    loop = asyncio.get_running_loop()
-    try:
-        result = await loop.run_in_executor(
-            None, _transcode_sync, ffmpeg, str(src), str(dest),
-        )
-    except Exception as exc:
-        logger.error("Transcode subprocess error: %s", exc)
-        dest.unlink(missing_ok=True)
-        return src
+    with crypto.decrypted_temp_copy(src, suffix=src.suffix) as plain_src:
+        fd, tmp_out_name = tempfile.mkstemp(suffix=".mp4")
+        os.close(fd)
+        tmp_out = Path(tmp_out_name)
+        try:
+            loop = asyncio.get_running_loop()
+            try:
+                result = await loop.run_in_executor(
+                    None, _transcode_sync, ffmpeg, str(plain_src), str(tmp_out),
+                )
+            except Exception as exc:
+                logger.error("Transcode subprocess error: %s", exc)
+                return decrypt_to_temp(src, suffix=src.suffix)
 
-    if result.returncode != 0:
-        stderr = result.stderr.decode(errors="replace")
-        logger.error("ffmpeg exit %d: %s", result.returncode, stderr[:500])
-        dest.unlink(missing_ok=True)
-        return src
+            if result.returncode != 0:
+                stderr = result.stderr.decode(errors="replace")
+                logger.error("ffmpeg exit %d: %s", result.returncode, stderr[:500])
+                return decrypt_to_temp(src, suffix=src.suffix)
 
-    logger.info("Transcode OK: %s (%d bytes)", dest.name, dest.stat().st_size)
-    return dest
+            # Cache the transcode output, encrypted, for next time.
+            crypto.encrypt_file_in_place(tmp_out, cache_path)
+            logger.info(
+                "Transcode OK: %s (%d bytes)", cache_path.name, cache_path.stat().st_size
+            )
+            return decrypt_to_temp(cache_path, suffix=".mp4")
+        finally:
+            tmp_out.unlink(missing_ok=True)
 
 
 # ── safe file deletion (Windows-friendly) ────────────────────────────
@@ -275,7 +293,10 @@ async def get_event_thumbnail(
     if not path.exists():
         raise HTTPException(404, "Thumbnail file missing")
 
-    return FileResponse(path, media_type="image/jpeg")
+    # Thumbnails are small — decrypt fully into memory instead of
+    # spinning up a temp file on disk.
+    plaintext = crypto.decrypt_bytes(path.read_bytes())
+    return Response(content=plaintext, media_type="image/jpeg")
 
 
 # ── clip (video) ─────────────────────────────────────────────────────
@@ -301,4 +322,5 @@ async def get_event_clip(
         h264_path,
         media_type="video/mp4",
         filename=f"event_{event_id}.mp4",
+        background=cleanup_task(h264_path),
     )
