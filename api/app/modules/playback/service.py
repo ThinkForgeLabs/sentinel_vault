@@ -71,6 +71,31 @@ async def get_batch_availability(
     return BatchAvailabilityResponse(cameras=cameras)
 
 
+async def get_export_recordings(
+    db: AsyncSession,
+    camera_id: uuid.UUID,
+    start: datetime,
+    end: datetime,
+) -> list[Recording]:
+    """Recording rows (not just availability metadata) that overlap the
+    requested export range, in playback order. The export endpoint trims
+    and stitches these together with ffmpeg to produce one clip covering
+    exactly the user-selected range."""
+    result = await db.execute(
+        select(Recording)
+        .where(
+            and_(
+                Recording.camera_id == camera_id,
+                Recording.status == "complete",
+                Recording.start_time < end,
+                Recording.end_time > start,
+            )
+        )
+        .order_by(Recording.start_time)
+    )
+    return list(result.scalars().all())
+
+
 async def get_timeline_events(
     db: AsyncSession,
     camera_ids: list[uuid.UUID],

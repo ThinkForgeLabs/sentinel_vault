@@ -3,6 +3,11 @@ import type { RecordingSegment } from "./index";
 import type { TimelineEventMarker } from "@/api/playback";
 import { cn } from "@/lib/cn";
 
+export interface TimeRange {
+  start: Date;
+  end: Date;
+}
+
 interface Props {
   date: string;
   segments: RecordingSegment[];
@@ -11,6 +16,12 @@ interface Props {
   onClick: (time: Date) => void;
   /** Frigate-style event markers overlaid on the bar (optional). */
   events?: TimelineEventMarker[];
+  /** When true, dragging on the bar selects an export range instead of
+   * scrubbing/seeking. */
+  selecting?: boolean;
+  /** Currently selected export range, if any — rendered as a highlight. */
+  selection?: TimeRange | null;
+  onSelectionChange?: (range: TimeRange | null) => void;
 }
 
 const MARKER_COLOR: Record<string, string> = {
@@ -27,6 +38,9 @@ export function Timeline({
   playheadTime,
   onClick,
   events = [],
+  selecting = false,
+  selection = null,
+  onSelectionChange,
 }: Props) {
   const barRef = useRef<HTMLDivElement>(null);
 
@@ -56,15 +70,52 @@ export function Timeline({
     return ((t - dayStart) / dayMs) * 100;
   }, [playheadTime, dayStart, dayEnd]);
 
+  const timeAtEvent = useCallback(
+    (e: React.MouseEvent | MouseEvent) => {
+      const rect = barRef.current!.getBoundingClientRect();
+      const frac = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      return new Date(dayStart + frac * dayMs);
+    },
+    [dayStart, dayMs]
+  );
+
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
-      if (!barRef.current) return;
-      const rect = barRef.current.getBoundingClientRect();
-      const frac = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-      onClick(new Date(dayStart + frac * dayMs));
+      if (!barRef.current || selecting) return;
+      onClick(timeAtEvent(e));
     },
-    [dayStart, dayMs, onClick]
+    [onClick, selecting, timeAtEvent]
   );
+
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      if (!selecting || !barRef.current) return;
+      const anchor = timeAtEvent(e);
+      onSelectionChange?.({ start: anchor, end: anchor });
+
+      const handleMove = (moveEvt: MouseEvent) => {
+        const current = timeAtEvent(moveEvt);
+        const [start, end] =
+          current < anchor ? [current, anchor] : [anchor, current];
+        onSelectionChange?.({ start, end });
+      };
+      const handleUp = () => {
+        window.removeEventListener("mousemove", handleMove);
+        window.removeEventListener("mouseup", handleUp);
+      };
+      window.addEventListener("mousemove", handleMove);
+      window.addEventListener("mouseup", handleUp);
+    },
+    [selecting, timeAtEvent, onSelectionChange]
+  );
+
+  const selectionRect = useMemo(() => {
+    if (!selection) return null;
+    const s = Math.max(selection.start.getTime(), dayStart);
+    const e = Math.min(selection.end.getTime(), dayEnd);
+    if (e <= s) return null;
+    return { left: ((s - dayStart) / dayMs) * 100, width: ((e - s) / dayMs) * 100 };
+  }, [selection, dayStart, dayEnd, dayMs]);
 
   const labels = useMemo(
     () =>
@@ -114,8 +165,20 @@ export function Timeline({
       <div
         ref={barRef}
         onClick={handleClick}
-        className="relative h-12 cursor-crosshair overflow-hidden rounded-md bg-gray-800"
+        onMouseDown={handleMouseDown}
+        className={cn(
+          "relative h-12 overflow-hidden rounded-md bg-gray-800",
+          selecting ? "cursor-col-resize" : "cursor-crosshair"
+        )}
       >
+        {/* Export range selection highlight */}
+        {selectionRect && (
+          <div
+            className="absolute inset-y-0 z-20 border-x-2 border-amber-400 bg-amber-400/20"
+            style={{ left: `${selectionRect.left}%`, width: `${selectionRect.width}%` }}
+          />
+        )}
+
         {/* Segment bars */}
         {bars.map((b) => (
           <div

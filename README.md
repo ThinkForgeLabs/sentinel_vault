@@ -484,7 +484,7 @@ cd api
 pytest
 ```
 
-**Current status: 57 passed, 0 failed** (full suite, run against SQLite; verified with `python -m pytest -q`).
+**Current status: 63 passed, 0 failed** (full suite, run against SQLite; verified with `python -m pytest -q`).
 
 The suite covers auth, cameras, recordings, playback, events, users, settings, and the setup wizard, plus two files added specifically for the security work described above:
 
@@ -492,8 +492,9 @@ The suite covers auth, cameras, recordings, playback, events, users, settings, a
 |---|---|---|
 | `tests/test_crypto.py` | 9 | Bytes and string roundtrip (including RTSP URLs with embedded credentials), legacy-plaintext passthrough for pre-existing unencrypted URLs, tamper detection (`InvalidTag` raised on modified ciphertext), file encrypt-in-place plus decrypted-temp-copy cleanup, key file permissions (`0600`), key persistence across a `KeyManager` reload, and passthrough behavior when encryption is disabled |
 | `tests/test_audit.py` | 6 | Login success/failure is audited (including that a failed-login row survives the request rollback that follows an auth error), camera create/update/delete is audited, settings writes are audited, and user create/delete is audited — with explicit assertions that RTSP credentials and passwords never appear in the logged `details_json` |
+| `tests/test_playback_export.py` | 6 | Arbitrary time-range clip export: single-segment export, multi-segment export spanning two recordings (trim + concat), 404 when no recordings overlap the range, 400 for an end-before-start range, 400 for a range exceeding the 2-hour cap, and 401 for missing auth — all run against real ffmpeg-generated test videos so the transcode/concat path is exercised for real, not mocked |
 
-Beyond the automated suite, the encryption pipeline was also verified with a live end-to-end run: a real camera recording was captured, closed, and persisted, then downloaded, played back through the H.264 transcode route, and served via the event thumbnail/clip routes — confirming files stay `SVEN1`-encrypted on disk at every stage and are decrypted only at the moment of serving.
+Beyond the automated suite, the encryption pipeline was also verified with a live end-to-end run: a real camera recording was captured, closed, and persisted, then downloaded, played back through the H.264 transcode route, and served via the event thumbnail/clip routes — confirming files stay `SVEN1`-encrypted on disk at every stage and are decrypted only at the moment of serving. The clip export endpoint was similarly verified live: two encrypted recording segments were seeded, an 8-second range spanning both was requested through the running API, and the response came back as a valid, correctly-trimmed MP4 with the expected `Content-Disposition: attachment` filename — confirming the decrypt → trim → concat → serve pipeline works end-to-end, not just in mocked tests.
 
 If you use linting/formatting tools:
 
@@ -530,15 +531,15 @@ ruff format .
 - **Encrypted RTSP credentials in the database**
 - **Audit logging for auth, settings, camera, and user actions**
 - **Startup enforcement against a default/placeholder secret key**
+- **Visual timeline with event markers**
+- **Camera offline detection and alerts** (backend heartbeat monitoring with real-time WebSocket push, toast, chime, and desktop notification)
+- **Video clip export and download** (arbitrary time-range export spanning multiple recording segments, transcoded and concatenated on demand, plus one-click download for events, full recording segments, and exported ranges)
+- **Multi-camera synchronized grid playback** (shared master clock with drift correction across tiles)
 
 ### 🔜 Coming Soon
 - Two-factor authentication (TOTP)
 - Background transcoding pipeline
 - Push notifications (browser, email, Discord)
-- Visual timeline with event markers
-- Camera offline detection and alerts
-- Video clip export and download
-- Multi-camera synchronized grid playback
 - Production Docker Compose with Nginx
 
 ### 🔮 Future

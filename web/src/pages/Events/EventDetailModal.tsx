@@ -1,10 +1,12 @@
 // pages/Events/EventDetailModal.tsx
 
 import { useEffect, useRef, useState } from "react";
-import { X, Trash2 } from "lucide-react";
+import { X, Trash2, Download, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { eventTypeLabel } from "@/lib/format";
 import { formatTime } from "@/lib/date";
+import { downloadFile } from "@/lib/download";
+import { useUiStore } from "@/store/uiStore";
 import type { CameraEvent } from "@/types/event";
 
 const API = "/api/v1";
@@ -19,6 +21,8 @@ export function EventDetailModal({ event, onClose, onDelete }: EventDetailModalP
   const videoRef = useRef<HTMLVideoElement>(null);
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const addToast = useUiStore((s) => s.addToast);
 
   // Reset confirm state whenever a different event is opened
   useEffect(() => {
@@ -61,6 +65,22 @@ export function EventDetailModal({ event, onClose, onDelete }: EventDetailModalP
     }
   }
 
+  async function handleDownload() {
+    if (!event) return;
+    setDownloading(true);
+    try {
+      await downloadFile(`/events/${event.id}/clip`, `event_${event.id}.mp4`);
+    } catch (err) {
+      addToast({
+        title: "Download failed",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "error",
+      });
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
@@ -89,6 +109,22 @@ export function EventDetailModal({ event, onClose, onDelete }: EventDetailModalP
           </div>
 
           <div className="flex items-center gap-1">
+            {/* Download button */}
+            {event.clip_path && (
+              <button
+                onClick={handleDownload}
+                disabled={downloading}
+                title="Download clip"
+                className="rounded-lg p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white disabled:opacity-50"
+              >
+                {downloading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4" />
+                )}
+              </button>
+            )}
+
             {/* Delete button */}
             <button
               onClick={handleDelete}

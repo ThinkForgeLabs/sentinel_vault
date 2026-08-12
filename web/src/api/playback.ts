@@ -55,4 +55,15 @@ export const playbackApi = {
     api.get<{ stream_url: string; codec: string; resolution: string }>(
       `/playback/stream/${cameraId}`
     ),
+
+  /** Path (not a fetch call) for the arbitrary-range clip export — the
+   * download itself goes through downloadFile() so it can carry the
+   * Authorization header. */
+  exportPath: (cameraId: string, start: string, end: string) => {
+    const url = new URL("http://placeholder/playback/export");
+    url.searchParams.set("camera_id", cameraId);
+    url.searchParams.set("start", start);
+    url.searchParams.set("end", end);
+    return `/playback/export${url.search}`;
+  },
 };
