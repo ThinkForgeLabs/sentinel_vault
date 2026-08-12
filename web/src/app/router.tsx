@@ -1,6 +1,8 @@
 import { createBrowserRouter, Navigate } from "react-router-dom";
 import { AppShell } from "@/components/layout/AppShell";
+import { RootGate } from "./RootGate";
 import LoginPage from "@/pages/Login";
+import SetupPage from "@/pages/Setup";
 import DashboardPage from "@/pages/Dashboard";
 import CamerasPage from "@/pages/Cameras";
 import WallPage from "@/pages/Wall";
@@ -17,23 +19,26 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 export const router = createBrowserRouter([
   {
-    path: "/login",
-    element: <LoginPage />,
-  },
-  {
     path: "/",
-    element: (
-      <ProtectedRoute>
-        <AppShell />
-      </ProtectedRoute>
-    ),
+    element: <RootGate />,
     children: [
-      { index: true, element: <DashboardPage /> },
-      { path: "cameras", element: <CamerasPage /> },
-      { path: "wall", element: <WallPage /> },
-      { path: "events", element: <EventsPage /> },
-      { path: "playback", element: <PlaybackPage /> },
-      { path: "settings", element: <SettingsPage /> },
+      { path: "setup", element: <SetupPage /> },
+      { path: "login", element: <LoginPage /> },
+      {
+        element: (
+          <ProtectedRoute>
+            <AppShell />
+          </ProtectedRoute>
+        ),
+        children: [
+          { index: true, element: <DashboardPage /> },
+          { path: "cameras", element: <CamerasPage /> },
+          { path: "wall", element: <WallPage /> },
+          { path: "events", element: <EventsPage /> },
+          { path: "playback", element: <PlaybackPage /> },
+          { path: "settings", element: <SettingsPage /> },
+        ],
+      },
     ],
   },
 ]);
