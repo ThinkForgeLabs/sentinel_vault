@@ -41,6 +41,7 @@ It is built to provide the core features you need:
 - user and role management
 - storage retention
 - self-hosted deployment
+- **local encryption at rest for every recording, clip, thumbnail, and stored camera credential**
 
 **No cloud required. No subscriptions. Your cameras, your data, your server.**
 
@@ -77,6 +78,12 @@ It is built to provide the core features you need:
 - Role-based access control
 - User management with **Owner**, **Admin**, and **Viewer** roles
 
+### 🔒 Encryption & Audit (see [Security & Encryption](#-security--encryption) below)
+- Local encryption at rest for recordings, clips, thumbnails, and RTSP credentials
+- Envelope encryption (AES-256-GCM) with an auto-generated, file-protected key
+- Full audit trail for logins, settings changes, and user/camera management
+- Startup enforcement that blocks production boots on a default/placeholder secret key
+
 ### 🛠️ Platform & Operations
 - Dark-themed responsive UI
 - PostgreSQL with async SQLAlchemy
@@ -84,6 +91,47 @@ It is built to provide the core features you need:
 - Alembic database migrations
 - Docker Compose orchestration
 - Structured request logging with correlation IDs
+
+---
+
+## 🔒 Security & Encryption
+
+Sentinel Vault's differentiator is that **security is the default, not an add-on.** Everything below is active out of the box — there's no separate "secure mode" to enable.
+
+### Encryption at rest
+
+All recorded video, clips, and thumbnails are encrypted on disk using **envelope encryption**:
+
+- A **key-encrypting key (KEK)** is auto-generated on first run and stored in a file with restrictive `0600` permissions — readable only by the user running the app.
+- The KEK wraps a random **256-bit data-encryption key (DEK)**, which is what actually encrypts your files. This means the DEK never touches disk in plaintext, and rotating the KEK doesn't require re-encrypting every recording.
+- Each file is encrypted with **AES-256-GCM** (authenticated encryption — tampering with a file causes decryption to fail loudly rather than silently returning corrupted video). On-disk format is `SVEN1` magic bytes + a 12-byte nonce + ciphertext and auth tag.
+
+**How it fits into the recording pipeline:**
+
+| Stage | What happens |
+|---|---|
+| Segment/clip is being written | Written as plaintext by the video encoder (OpenCV/ffmpeg can't write directly to an encrypted stream) |
+| Segment/clip is closed | Encrypted in place immediately — the plaintext window only exists while the file is actively being written |
+| Viewing / downloading / playback | Decrypted to a short-lived temporary file (or in-memory for thumbnails) only for the duration of the response, then the plaintext copy is deleted |
+| Transcoded playback cache (H.264) | Re-encrypted immediately after ffmpeg produces it |
+
+The result: if someone copies your storage volume, plugs in a stolen drive, or gets access to a backup, the recordings are unreadable without the key material on the running server.
+
+### Encrypted secrets in the database
+
+Camera **RTSP URLs** often embed credentials (`rtsp://user:pass@host:554/stream`). These are encrypted at rest in the database using the same AES-256-GCM scheme, and only decrypted in memory when the recorder actually needs to connect to the camera. Legacy plaintext URLs from older installs are detected automatically and still work — no forced migration step.
+
+### Audit logging
+
+Every security-relevant action writes an audit log entry: login success/failure (with reason — invalid credentials vs. disabled account), settings changes, setup-wizard completion, and user/camera create/update/delete. Audit entries never contain secrets — they log *what* changed (e.g. which fields, which camera name) rather than sensitive values, so RTSP credentials and passwords never leak into the audit trail even if the database itself is later exposed.
+
+### Startup hardening
+
+The app refuses to start in a non-development environment if `SECRET_KEY` is still the shipped placeholder value — preventing an easy-to-miss deployment mistake from leaving JWT signing on a publicly known key.
+
+### Explicitly out of scope (for now)
+
+Two-factor authentication (TOTP) was evaluated and intentionally deferred — it's a natural next step but wasn't part of this security pass. See [Roadmap](#-roadmap).
 
 ---
 
@@ -184,6 +232,7 @@ REDIS_URL=redis://localhost:6379/0
 STORAGE_ROOT=./data/recordings
 CORS_ORIGINS=["http://localhost:5173"]
 SEGMENT_DURATION_MINUTES=15
+ENCRYPTION_ENABLED=true
 ```
 
 ### Example for Dockerized backend
@@ -195,9 +244,14 @@ REDIS_URL=redis://redis:6379/0
 STORAGE_ROOT=/data/recordings
 CORS_ORIGINS=["http://localhost:5173"]
 SEGMENT_DURATION_MINUTES=15
+ENCRYPTION_ENABLED=true
 ```
 
 > **Note:** Use `localhost` when the backend runs on your machine, and use Docker service names like `postgres` and `redis` when the backend runs inside Docker.
+>
+> **Note on `SECRET_KEY`:** the app will refuse to start outside `development` if this is left as the shipped placeholder value — generate a real random value (e.g. `openssl rand -hex 32`) before deploying.
+>
+> **Note on `ENCRYPTION_ENABLED`:** on by default. When enabled, a key file is auto-generated at `data/keys/` on first run (see [Security & Encryption](#-security--encryption)) — back that directory up along with your database, since losing it makes existing recordings unrecoverable.
 
 ---
 
@@ -430,6 +484,17 @@ cd api
 pytest
 ```
 
+**Current status: 57 passed, 0 failed** (full suite, run against SQLite; verified with `python -m pytest -q`).
+
+The suite covers auth, cameras, recordings, playback, events, users, settings, and the setup wizard, plus two files added specifically for the security work described above:
+
+| Test file | Tests | What's covered |
+|---|---|---|
+| `tests/test_crypto.py` | 9 | Bytes and string roundtrip (including RTSP URLs with embedded credentials), legacy-plaintext passthrough for pre-existing unencrypted URLs, tamper detection (`InvalidTag` raised on modified ciphertext), file encrypt-in-place plus decrypted-temp-copy cleanup, key file permissions (`0600`), key persistence across a `KeyManager` reload, and passthrough behavior when encryption is disabled |
+| `tests/test_audit.py` | 6 | Login success/failure is audited (including that a failed-login row survives the request rollback that follows an auth error), camera create/update/delete is audited, settings writes are audited, and user create/delete is audited — with explicit assertions that RTSP credentials and passwords never appear in the logged `details_json` |
+
+Beyond the automated suite, the encryption pipeline was also verified with a live end-to-end run: a real camera recording was captured, closed, and persisted, then downloaded, played back through the H.264 transcode route, and served via the event thumbnail/clip routes — confirming files stay `SVEN1`-encrypted on disk at every stage and are decrypted only at the moment of serving.
+
 If you use linting/formatting tools:
 
 ```bash
@@ -461,8 +526,13 @@ ruff format .
 - Automatic retention policy and storage management
 - Motion detection and real-time playback
 - Timeline-based navigation
+- **Local encryption at rest for recordings, clips, and thumbnails (AES-256-GCM envelope encryption)**
+- **Encrypted RTSP credentials in the database**
+- **Audit logging for auth, settings, camera, and user actions**
+- **Startup enforcement against a default/placeholder secret key**
 
 ### 🔜 Coming Soon
+- Two-factor authentication (TOTP)
 - Background transcoding pipeline
 - Push notifications (browser, email, Discord)
 - Visual timeline with event markers
