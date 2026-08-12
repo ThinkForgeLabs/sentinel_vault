@@ -1,5 +1,7 @@
 import { useMemo, useRef, useCallback } from "react";
 import type { RecordingSegment } from "./index";
+import type { TimelineEventMarker } from "@/api/playback";
+import { cn } from "@/lib/cn";
 
 interface Props {
   date: string;
@@ -7,7 +9,16 @@ interface Props {
   activeSegment: RecordingSegment | null;
   playheadTime: Date | null;
   onClick: (time: Date) => void;
+  /** Frigate-style event markers overlaid on the bar (optional). */
+  events?: TimelineEventMarker[];
 }
+
+const MARKER_COLOR: Record<string, string> = {
+  low: "bg-gray-400",
+  medium: "bg-cyan-400",
+  high: "bg-amber-400",
+  critical: "bg-red-500",
+};
 
 export function Timeline({
   date,
@@ -15,6 +26,7 @@ export function Timeline({
   activeSegment,
   playheadTime,
   onClick,
+  events = [],
 }: Props) {
   const barRef = useRef<HTMLDivElement>(null);
 
@@ -63,8 +75,42 @@ export function Timeline({
     []
   );
 
+  const markers = useMemo(
+    () =>
+      events
+        .map((e) => {
+          const t = new Date(e.started_at).getTime();
+          if (t < dayStart || t > dayEnd) return null;
+          return {
+            id: e.event_id,
+            left: ((t - dayStart) / dayMs) * 100,
+            importance: e.importance,
+            type: e.event_type,
+          };
+        })
+        .filter((m): m is NonNullable<typeof m> => m !== null),
+    [events, dayStart, dayEnd, dayMs]
+  );
+
   return (
     <div>
+      {/* Event marker row (Frigate-style ticks) */}
+      {markers.length > 0 && (
+        <div className="relative mb-1 h-3">
+          {markers.map((m) => (
+            <div
+              key={m.id}
+              title={m.type}
+              className={cn(
+                "absolute top-0 h-2.5 w-1 -translate-x-1/2 rounded-full",
+                MARKER_COLOR[m.importance] ?? "bg-gray-400"
+              )}
+              style={{ left: `${m.left}%` }}
+            />
+          ))}
+        </div>
+      )}
+
       <div
         ref={barRef}
         onClick={handleClick}

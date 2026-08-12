@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { api } from "@/api/client";
+import { playbackApi, type TimelineEventMarker } from "@/api/playback";
 import { Topbar } from "@/components/layout/Topbar";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PlaybackPlayer } from "./PlaybackPlayer";
@@ -36,6 +37,7 @@ export default function PlaybackPage() {
   const [playheadTime, setPlayheadTime] = useState<Date | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [timelineEvents, setTimelineEvents] = useState<TimelineEventMarker[]>([]);
 
   // Fetch cameras on mount
   useEffect(() => {
@@ -84,6 +86,15 @@ export default function PlaybackPage() {
         setActiveSegment(null);
       })
       .finally(() => setLoading(false));
+
+    playbackApi
+      .timelineEvents(
+        [selectedCamera],
+        `${selectedDate}T00:00:00Z`,
+        `${selectedDate}T23:59:59Z`
+      )
+      .then((data) => setTimelineEvents(data.events))
+      .catch(() => setTimelineEvents([]));
   }, [selectedCamera, selectedDate]);
 
   const handleTimelineClick = useCallback(
@@ -190,6 +201,7 @@ export default function PlaybackPage() {
               activeSegment={activeSegment}
               playheadTime={playheadTime}
               onClick={handleTimelineClick}
+              events={timelineEvents}
             />
           </div>
         </div>

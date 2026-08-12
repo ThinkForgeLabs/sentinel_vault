@@ -7,6 +7,7 @@ export const IMPORTANCE_LEVELS = ["low", "medium", "high", "critical"] as const;
 export const NAV_ITEMS = [
   { id: "dashboard", label: "Home", icon: "Home", path: "/" },
   { id: "cameras", label: "Cameras", icon: "Video", path: "/cameras" },
+  { id: "wall", label: "Wall View", icon: "LayoutGrid", path: "/wall" },
   { id: "events", label: "Events", icon: "Zap", path: "/events" },
   { id: "playback", label: "Playback", icon: "Clock", path: "/playback" },
   { id: "settings", label: "Settings", icon: "Settings", path: "/settings" },
