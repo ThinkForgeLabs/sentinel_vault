@@ -35,6 +35,17 @@ async def setup_db():
         await conn.run_sync(Base.metadata.drop_all)
 
 
+@pytest.fixture(autouse=True)
+def patch_standalone_audit_session(monkeypatch):
+    """log_action_standalone() (used for e.g. failed-login audit rows that
+    must survive the request session's rollback-on-exception) opens its own
+    session via app.db.session.async_session_factory, which otherwise points
+    at the real configured DATABASE_URL. Point it at the test sqlite engine
+    so those standalone-committed rows land in the same test.db the rest of
+    the suite uses."""
+    monkeypatch.setattr("app.db.session.async_session_factory", TestSession)
+
+
 @pytest_asyncio.fixture
 async def db_session() -> AsyncGenerator[AsyncSession, None]:
     async with TestSession() as session:

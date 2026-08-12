@@ -8,6 +8,10 @@ from app.core.security import hash_password, verify_password
 from app.modules.auth.model import User
 from app.modules.users.schemas import SelfUpdate, UserCreate, UserUpdate
 
+# NOTE: app.services.audit is imported lazily (inside functions) below —
+# audit -> settings.service -> users.service, so a top-level import here
+# would be circular.
+
 
 async def list_users(db: AsyncSession) -> list[User]:
     result = await db.execute(select(User).order_by(User.created_at.desc()))
@@ -30,7 +34,11 @@ async def get_user(db: AsyncSession, user_id: uuid.UUID | str) -> User:
     return user
 
 
-async def create_user(db: AsyncSession, data: UserCreate) -> User:
+async def create_user(
+    db: AsyncSession, data: UserCreate, actor_id: str | None = None
+) -> User:
+    from app.services.audit import log_action
+
     existing = await db.execute(select(User).where(User.username == data.username))
     if existing.scalar_one_or_none() is not None:
         raise ConflictError(f"Username '{data.username}' already exists")
@@ -43,21 +51,48 @@ async def create_user(db: AsyncSession, data: UserCreate) -> User:
     )
     db.add(user)
     await db.flush()
+
+    await log_action(
+        db,
+        actor_id=actor_id,
+        action="create_user",
+        resource_type="user",
+        resource_id=str(user.id),
+        details={"username": user.username, "role": user.role},
+    )
+
     return user
 
 
-async def update_user(db: AsyncSession, user_id: uuid.UUID | str, data: UserUpdate) -> User:
+async def update_user(
+    db: AsyncSession, user_id: uuid.UUID | str, data: UserUpdate, actor_id: str | None = None
+) -> User:
+    from app.services.audit import log_action
+
     user = await get_user(db, user_id)
     updates = data.model_dump(exclude_unset=True)
     for key, value in updates.items():
         setattr(user, key, value)
     await db.flush()
+
+    await log_action(
+        db,
+        actor_id=actor_id,
+        action="update_user",
+        resource_type="user",
+        resource_id=str(user.id),
+        details={"fields": list(updates.keys())},
+    )
+
     return user
 
 
 async def update_self(db: AsyncSession, user: User, data: SelfUpdate) -> User:
     """Self-service profile/password update. Never touches role or
     is_active — those stay owner-gated via update_user."""
+    from app.services.audit import log_action
+
+    password_changed = False
     if data.display_name is not None:
         user.display_name = data.display_name
 
@@ -67,12 +102,26 @@ async def update_self(db: AsyncSession, user: User, data: SelfUpdate) -> User:
         ):
             raise BadRequestError("Current password is incorrect")
         user.password_hash = hash_password(data.new_password)
+        password_changed = True
 
     await db.flush()
+
+    await log_action(
+        db,
+        actor_id=str(user.id),
+        action="change_password" if password_changed else "update_self",
+        resource_type="user",
+        resource_id=str(user.id),
+    )
+
     return user
 
 
-async def delete_user(db: AsyncSession, user_id: uuid.UUID | str) -> None:
+async def delete_user(
+    db: AsyncSession, user_id: uuid.UUID | str, actor_id: str | None = None
+) -> None:
+    from app.services.audit import log_action
+
     user = await get_user(db, user_id)
 
     if user.role == "owner":
@@ -82,5 +131,17 @@ async def delete_user(db: AsyncSession, user_id: uuid.UUID | str) -> None:
         if result.scalar_one_or_none() is None:
             raise ConflictError("Cannot delete the last owner account")
 
+    deleted_id = str(user.id)
+    deleted_username = user.username
+
     await db.delete(user)
     await db.flush()
+
+    await log_action(
+        db,
+        actor_id=actor_id,
+        action="delete_user",
+        resource_type="user",
+        resource_id=deleted_id,
+        details={"username": deleted_username},
+    )

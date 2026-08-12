@@ -39,9 +39,9 @@ async def get_users(
 async def add_user(
     body: UserCreate,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_owner),
+    current_user: User = Depends(require_owner),
 ):
-    return await create_user(db, body)
+    return await create_user(db, body, actor_id=str(current_user.id))
 
 
 @router.put("/{user_id}", response_model=UserOut)
@@ -49,15 +49,15 @@ async def edit_user(
     user_id: uuid.UUID,
     body: UserUpdate,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_owner),
+    current_user: User = Depends(require_owner),
 ):
-    return await update_user(db, user_id, body)
+    return await update_user(db, user_id, body, actor_id=str(current_user.id))
 
 
 @router.delete("/{user_id}", status_code=204)
 async def remove_user(
     user_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_owner),
+    current_user: User = Depends(require_owner),
 ):
-    await delete_user(db, user_id)
+    await delete_user(db, user_id, actor_id=str(current_user.id))

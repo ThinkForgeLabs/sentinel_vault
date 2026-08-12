@@ -35,20 +35,22 @@ async def write_setting(
     key: str,
     body: SettingUpdate,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_owner),
+    current_user: User = Depends(require_owner),
 ):
-    return await upsert_setting(db, key, body)
+    return await upsert_setting(db, key, body, actor_id=str(current_user.id))
 
 
 @router.put("", response_model=list[SettingOut])
 async def write_bulk_settings(
     body: BulkSettingsUpdate,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_owner),
+    current_user: User = Depends(require_owner),
 ):
     results = []
     for key, value in body.settings.items():
-        s = await upsert_setting(db, key, SettingUpdate(value_json=value))
+        s = await upsert_setting(
+            db, key, SettingUpdate(value_json=value), actor_id=str(current_user.id)
+        )
         results.append(s)
     return results
 
