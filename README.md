@@ -17,6 +17,7 @@ Built with FastAPI · React · PostgreSQL · Redis · FFmpeg
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
 [Overview](#-overview) •
+[Screenshots](#-screenshots) •
 [Features](#-features) •
 [Architecture](#-architecture) •
 [Quick Start](#-quick-start) •
@@ -47,6 +48,53 @@ It is built to provide the core features you need:
 
 ---
 
+## 🖼️ Screenshots
+
+<table>
+<tr>
+<td width="50%">
+
+**Dashboard**
+At-a-glance camera status, today's events, and recent activity.
+
+![Dashboard](docs/screenshots/dashboard.png)
+
+</td>
+<td width="50%">
+
+**Cameras**
+Live thumbnails for every configured camera, with recording status and retention.
+
+![Cameras](docs/screenshots/cameras.png)
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**Wall View**
+All cameras in a synchronized grid, live or scrubbed together.
+
+![Wall View](docs/screenshots/wall-view.png)
+
+</td>
+<td width="50%">
+
+**Playback**
+Timeline scrubbing with event markers, plus range export and download.
+
+![Playback](docs/screenshots/playback.png)
+
+</td>
+</tr>
+</table>
+
+**Events** — filterable motion and camera-offline activity across all cameras.
+
+![Events](docs/screenshots/events.png)
+
+---
+
 ## ✨ Features
 
 ### 📹 Camera & Recording
@@ -63,12 +111,19 @@ It is built to provide the core features you need:
 ### 🎞️ Playback & Timeline
 - Playback by **camera** and **date**
 - Segment navigation for recorded footage
-- Timeline-based browsing
+- **Visual timeline with event markers** — motion and offline events are plotted directly on the scrubber so you can jump straight to the moment that matters
 - Real-time playback review
 - On-the-fly **H.264 transcoding** with caching for browser playback
+- **Video clip export and download** — drag-select an arbitrary time range (spanning multiple recording segments) and export it as a single trimmed, concatenated MP4, or download individual event clips and full segments with one click
+
+### 🖥️ Wall View
+- **Multi-camera synchronized grid playback** — watch every camera at once, live or scrubbed together, with a shared master clock and drift correction across tiles
+- Live and recorded modes with per-camera toggles
+- Responsive grid that adapts to camera count
 
 ### 🚨 Events & Detection
 - Motion detection
+- **Camera offline detection and alerts** — backend heartbeat monitoring pushes real-time WebSocket alerts, with toast, chime, and desktop notification when a camera drops off
 - Event logging with severity levels
 - Event statistics dashboard
 - Filterable event history and review workflow
