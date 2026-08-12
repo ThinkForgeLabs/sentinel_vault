@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import select
 
+from app.core import crypto
 from app.core.logging import get_logger
 from app.db.session import async_session_factory
 from app.modules.cameras.model import Camera
@@ -38,7 +39,7 @@ async def start_recording_for_enabled_cameras() -> None:
     for camera in cameras:
         detection_mgr.register(str(camera.id))
         recording_manager.start_recording(
-            str(camera.id), camera.rtsp_url_encrypted, camera.retention_days
+            str(camera.id), crypto.decrypt_str(camera.rtsp_url_encrypted), camera.retention_days
         )
     logger.info("Started recording for %d camera(s)", len(cameras))
 
@@ -56,7 +57,9 @@ async def flush_segments_loop() -> None:
                             db.add(
                                 Recording(
                                     id=seg["id"],
-                                    camera_id=seg["camera_id"],
+                                    # camera_id is a UUID column; recording_manager's
+                                    # queue stores it as str, so parse it back here.
+                                    camera_id=uuid.UUID(str(seg["camera_id"])),
                                     start_time=datetime.fromtimestamp(
                                         seg["start_time"], tz=timezone.utc
                                     ),
@@ -94,7 +97,10 @@ async def camera_status_sync_loop() -> None:
                     try:
                         alerts: list[tuple[AlertMessage, Event | None]] = []
                         for camera_id, status in changes:
-                            camera = await db.get(Camera, camera_id)
+                            # recording_manager's queue stores camera ids as
+                            # str; Camera/Event.camera_id are UUID columns.
+                            camera_uuid = uuid.UUID(str(camera_id))
+                            camera = await db.get(Camera, camera_uuid)
                             if camera is None or camera.status == status:
                                 continue
                             camera.status = status
@@ -102,7 +108,7 @@ async def camera_status_sync_loop() -> None:
                             if status == "offline":
                                 offline_event = Event(
                                     id=uuid.uuid4(),
-                                    camera_id=camera_id,
+                                    camera_id=camera_uuid,
                                     event_type="camera_offline",
                                     subtype=None,
                                     started_at=now,

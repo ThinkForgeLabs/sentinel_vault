@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import uuid
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -56,7 +57,7 @@ async def _final_flush_segments():
             for seg in segments:
                 db.add(Recording(
                     id=seg["id"],
-                    camera_id=seg["camera_id"],
+                    camera_id=uuid.UUID(str(seg["camera_id"])),
                     start_time=seg["start_time"],
                     end_time=seg["end_time"],
                     file_path=seg["file_path"],
@@ -86,7 +87,7 @@ async def _final_flush_events():
                 clip_duration = ev.get("clip_duration_seconds")
                 db.add(Event(
                     id=ev["id"],
-                    camera_id=ev["camera_id"],
+                    camera_id=uuid.UUID(str(ev["camera_id"])),
                     event_type=ev.get("event_type", "motion"),
                     subtype=ev.get("subtype", "frame_diff"),
                     started_at=ev["started_at"],

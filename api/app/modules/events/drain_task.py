@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import uuid
 
 from app.db.session import async_session_factory
 from app.modules.cameras.model import Camera
@@ -53,7 +54,9 @@ async def motion_event_drain_loop():
                         for ev in events:
                             event = Event(
                                 id=ev["id"],
-                                camera_id=ev["camera_id"],
+                                # camera_id is a UUID column; recording_manager's
+                                # queue stores it as str, so parse it back here.
+                                camera_id=uuid.UUID(str(ev["camera_id"])),
                                 event_type=ev.get("event_type", "motion"),
                                 subtype=ev.get("subtype", "frame_diff"),
                                 started_at=ev["started_at"],
