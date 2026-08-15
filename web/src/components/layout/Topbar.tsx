@@ -122,7 +122,7 @@ export function Topbar({ title }: TopbarProps) {
                     />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-xs font-semibold">
-                        {a.camera_name ?? "Unknown camera"}
+                        {a.camera_name ?? a.device_name ?? "Unknown source"}
                       </p>
                       <p className="truncate text-xs text-gray-400">
                         {eventTypeLabel(a.event_type)}

@@ -42,7 +42,7 @@ function playChime() {
 function notifyDesktop(alert: AlertMessage) {
   if (typeof Notification === "undefined") return;
   if (Notification.permission === "granted") {
-    new Notification(alert.camera_name ?? "Sentinel Vault", {
+    new Notification(alert.camera_name ?? alert.device_name ?? "Sentinel Vault", {
       body: `${alert.event_type}${alert.subtype ? ` · ${alert.subtype}` : ""}`,
       tag: alert.event_id ?? undefined,
     });
@@ -97,7 +97,7 @@ export function useRealtimeAlerts() {
           playChime();
           notifyDesktop(data);
           addToast({
-            title: data.camera_name ?? "New alert",
+            title: data.camera_name ?? data.device_name ?? "New alert",
             description: `${data.event_type}${data.subtype ? ` · ${data.subtype}` : ""}`,
             variant: IMPORTANCE_VARIANT[data.importance] ?? "default",
           });

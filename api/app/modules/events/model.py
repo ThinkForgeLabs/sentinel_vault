@@ -10,8 +10,16 @@ from app.db.base import Base, TimestampMixin, UUIDMixin
 class Event(UUIDMixin, TimestampMixin, Base):
     __tablename__ = "events"
 
-    camera_id: Mapped[str] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("cameras.id", ondelete="CASCADE"), nullable=False
+    # Exactly one of camera_id / device_id is set, enforced at the service
+    # layer (create_motion_event / camera_status_sync_loop always set
+    # camera_id; the MQTT ingest task always sets device_id). Both are
+    # nullable so the same Event table can carry video-camera events and
+    # non-camera sensor events (door/presence/doorbell) side by side.
+    camera_id: Mapped[str | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cameras.id", ondelete="CASCADE"), nullable=True
+    )
+    device_id: Mapped[str | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("devices.id", ondelete="CASCADE"), nullable=True
     )
     event_type: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     subtype: Mapped[str | None] = mapped_column(String(100))

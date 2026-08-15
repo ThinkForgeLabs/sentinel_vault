@@ -202,8 +202,14 @@ export function EventDetailModal({ event, onClose, onDelete }: EventDetailModalP
               <p className="text-white">{confidence}%</p>
             </div>
             <div>
-              <p className="text-xs text-gray-500">Camera</p>
-              <p className="text-white">{event.camera_id.slice(0, 8)}…</p>
+              <p className="text-xs text-gray-500">{event.camera_id ? "Camera" : "Device"}</p>
+              <p className="text-white">
+                {event.camera_id
+                  ? `${event.camera_id.slice(0, 8)}…`
+                  : event.device_id
+                    ? `${event.device_id.slice(0, 8)}…`
+                    : "—"}
+              </p>
             </div>
           </div>
         </div>

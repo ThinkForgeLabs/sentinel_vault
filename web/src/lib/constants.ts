@@ -1,12 +1,22 @@
 export const API_URL = import.meta.env.VITE_API_URL ?? "/api/v1";
 
-export const EVENT_TYPES = ["motion", "camera_offline"] as const;
+export const EVENT_TYPES = [
+  "motion",
+  "camera_offline",
+  "door_open",
+  "presence_detected",
+  "doorbell_pressed",
+  "sensor_state",
+  "device_offline",
+  "device_online",
+] as const;
 
 export const IMPORTANCE_LEVELS = ["low", "medium", "high", "critical"] as const;
 
 export const NAV_ITEMS = [
   { id: "dashboard", label: "Home", icon: "Home", path: "/" },
   { id: "cameras", label: "Cameras", icon: "Video", path: "/cameras" },
+  { id: "devices", label: "Devices", icon: "Radio", path: "/devices" },
   { id: "wall", label: "Wall View", icon: "LayoutGrid", path: "/wall" },
   { id: "events", label: "Events", icon: "Zap", path: "/events" },
   { id: "playback", label: "Playback", icon: "Clock", path: "/playback" },

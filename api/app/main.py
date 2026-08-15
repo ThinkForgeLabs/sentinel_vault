@@ -31,6 +31,9 @@ from app.modules.detection.routes import router as detection_router
 from app.modules.detection.service import init_detectors
 from app.modules.events.drain_task import motion_event_drain_loop
 from app.modules.realtime.router import router as realtime_router
+from app.modules.devices.router import router as devices_router
+from app.modules.devices.mqtt_manager import mqtt_manager
+from app.modules.devices.ingest_task import mqtt_ingest_drain_loop
 
 logger = logging.getLogger(__name__)
 
@@ -138,6 +141,23 @@ async def lifespan(app: FastAPI):
 
     task_motion_drain = asyncio.create_task(motion_event_drain_loop())
 
+    # ── MQTT sensor ingestion (opt-in) ──
+    # Off by default so installs without a broker never attempt a
+    # connection. See app/modules/devices/.
+    task_mqtt_ingest = None
+    if settings.mqtt_enabled:
+        mqtt_manager.start(
+            host=settings.mqtt_broker_host,
+            port=settings.mqtt_broker_port,
+            username=settings.mqtt_username,
+            password=settings.mqtt_password,
+            topic_prefixes=[
+                settings.mqtt_esphome_topic_prefix,
+                settings.mqtt_zigbee2mqtt_topic_prefix,
+            ],
+        )
+        task_mqtt_ingest = asyncio.create_task(mqtt_ingest_drain_loop())
+
     yield
 
     # ──────────────────────────────────────
@@ -161,6 +181,9 @@ async def lifespan(app: FastAPI):
     await _cancel_task(task_retention, "retention_cleanup_loop")
     await _cancel_task(task_status_sync, "camera_status_sync_loop")
     await _cancel_task(task_motion_drain, "motion_event_drain_loop")
+    if task_mqtt_ingest is not None:
+        await _cancel_task(task_mqtt_ingest, "mqtt_ingest_drain_loop")
+        mqtt_manager.stop()
 
     # 5. Release camera hardware
     capture_manager.release_all()
@@ -203,6 +226,7 @@ app.include_router(settings_router, prefix=f"{PREFIX}/settings", tags=["Settings
 app.include_router(recordings_router, prefix=f"{PREFIX}/recordings", tags=["Recordings"])
 app.include_router(detection_router, prefix=f"{PREFIX}/detection", tags=["Detection"])
 app.include_router(realtime_router, prefix=f"{PREFIX}/realtime", tags=["Realtime"])
+app.include_router(devices_router, prefix=f"{PREFIX}/devices", tags=["Devices"])
 
 
 @app.get(f"{PREFIX}/system/health")

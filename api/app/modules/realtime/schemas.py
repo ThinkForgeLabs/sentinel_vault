@@ -27,8 +27,10 @@ class AlertMessage(BaseModel):
 
     type: str = "event"
     event_id: str | None = None
-    camera_id: str
+    camera_id: str | None = None
     camera_name: str | None = None
+    device_id: str | None = None
+    device_name: str | None = None
     event_type: str
     subtype: str | None = None
     importance: str = "low"

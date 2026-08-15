@@ -43,6 +43,7 @@ It is built to provide the core features you need:
 - storage retention
 - self-hosted deployment
 - **local encryption at rest for every recording, clip, thumbnail, and stored camera credential**
+- **MQTT-based sensor integration** — presence sensors, door/window sensors, and doorbell buttons (ESPHome and Zigbee2MQTT) feed events into the same dashboard and alert pipeline as your cameras
 
 **No cloud required. No subscriptions. Your cameras, your data, your server.**
 
@@ -93,6 +94,10 @@ Timeline scrubbing with event markers, plus range export and download.
 
 ![Events](docs/screenshots/events.png)
 
+**Devices** — manage non-camera sensors (presence, door/window, doorbell) ingested over MQTT, with live online/offline status.
+
+![Devices](docs/screenshots/devices.png)
+
 ---
 
 ## ✨ Features
@@ -127,6 +132,13 @@ Timeline scrubbing with event markers, plus range export and download.
 - Event logging with severity levels
 - Event statistics dashboard
 - Filterable event history and review workflow
+
+### 📡 Devices & Sensors
+- **Device registry** for non-camera hardware — presence sensors, door/window sensors, and doorbell buttons, managed from a dedicated Devices page (add, edit, enable/disable, delete)
+- **MQTT ingestion service** running as a background task alongside the API — subscribes to **ESPHome** status/state topics and **Zigbee2MQTT** friendly-name topics, no Home Assistant installation required
+- Automatic **online/offline tracking** per device from MQTT availability/status messages, with a `device_offline` event and alert generated on transition
+- Sensor state changes (door opened, presence detected, doorbell pressed) are normalized into the same **Events** pipeline as camera motion — same importance levels, same real-time WebSocket alerts, same dashboard and event history
+- Handles Zigbee2MQTT's inverted `contact` payload convention and common ESPHome binary-sensor payload shapes automatically
 
 ### 🔐 Authentication & Access Control
 - JWT authentication
@@ -193,18 +205,18 @@ Two-factor authentication (TOTP) was evaluated and intentionally deferred — it
 ## 🏗️ Architecture
 
 ```text
-┌──────────────────────────────────────────────────────────────┐
-│                        React Frontend                        │
-│                 Vite + TypeScript + Tailwind                │
+┌────────────────────────────────────────────────────────────┐
+│                       React Frontend                        │
+│                Vite + TypeScript + Tailwind                 │
 │                                                              │
-│    Dashboard · Cameras · Events · Playback · Settings       │
+│  Dashboard · Cameras · Devices · Events · Playback · Settings │
 └───────────────────────────┬──────────────────────────────────┘
                             │ REST API + WebSocket
 ┌───────────────────────────┼──────────────────────────────────┐
 │                     FastAPI Backend                          │
 │                                                              │
-│  Auth · Cameras · Recordings · Playback · Events · Users    │
-│  Settings · FFmpeg integration · Background processing       │
+│  Auth · Cameras · Devices · Recordings · Playback · Events  │
+│  Users · Settings · FFmpeg integration · MQTT ingestion task │
 └───────────────┬───────────────────────────────┬──────────────┘
                 │                               │
         ┌───────▼────────┐              ┌───────▼───────┐
@@ -218,7 +230,15 @@ Two-factor authentication (TOTP) was evaluated and intentionally deferred — it
                   │ recordings  │
                   │ segments    │
                   └─────────────┘
+
+┌──────────────────────────┐        ┌──────────────────────────────┐
+│  Sensor hardware          │        │  MQTT ingestion (background   │
+│  ESPHome · Zigbee2MQTT   │──MQTT─▶│  task inside FastAPI process)  │
+│  presence/door/doorbell  │        │  paho-mqtt → Devices + Events  │
+└──────────────────────────┘        └──────────────────────────────┘
 ```
+
+The MQTT ingestion task runs inside the same FastAPI process (started in the app lifespan when `MQTT_ENABLED=true`), polling a thread-safe message queue and writing directly to the same `devices` and `events` tables the REST API and WebSocket layer read from — no separate service or Home Assistant installation required.
 
 ---
 
@@ -235,6 +255,7 @@ Two-factor authentication (TOTP) was evaluated and intentionally deferred — it
 | Redis | Caching layer |
 | Alembic | Database migrations |
 | FFmpeg | Camera ingest and transcoding |
+| paho-mqtt | MQTT client for ESPHome/Zigbee2MQTT sensor ingestion |
 | Pydantic | Validation and configuration |
 | Uvicorn | ASGI server |
 
@@ -288,6 +309,13 @@ STORAGE_ROOT=./data/recordings
 CORS_ORIGINS=["http://localhost:5173"]
 SEGMENT_DURATION_MINUTES=15
 ENCRYPTION_ENABLED=true
+MQTT_ENABLED=false
+MQTT_BROKER_HOST=localhost
+MQTT_BROKER_PORT=1883
+MQTT_USERNAME=
+MQTT_PASSWORD=
+MQTT_ESPHOME_TOPIC_PREFIX=esphome
+MQTT_ZIGBEE2MQTT_TOPIC_PREFIX=zigbee2mqtt
 ```
 
 ### Example for Dockerized backend
@@ -300,6 +328,13 @@ STORAGE_ROOT=/data/recordings
 CORS_ORIGINS=["http://localhost:5173"]
 SEGMENT_DURATION_MINUTES=15
 ENCRYPTION_ENABLED=true
+MQTT_ENABLED=false
+MQTT_BROKER_HOST=mosquitto
+MQTT_BROKER_PORT=1883
+MQTT_USERNAME=
+MQTT_PASSWORD=
+MQTT_ESPHOME_TOPIC_PREFIX=esphome
+MQTT_ZIGBEE2MQTT_TOPIC_PREFIX=zigbee2mqtt
 ```
 
 > **Note:** Use `localhost` when the backend runs on your machine, and use Docker service names like `postgres` and `redis` when the backend runs inside Docker.
@@ -307,6 +342,8 @@ ENCRYPTION_ENABLED=true
 > **Note on `SECRET_KEY`:** the app will refuse to start outside `development` if this is left as the shipped placeholder value — generate a real random value (e.g. `openssl rand -hex 32`) before deploying.
 >
 > **Note on `ENCRYPTION_ENABLED`:** on by default. When enabled, a key file is auto-generated at `data/keys/` on first run (see [Security & Encryption](#-security--encryption)) — back that directory up along with your database, since losing it makes existing recordings unrecoverable.
+>
+> **Note on `MQTT_ENABLED`:** off by default. Turn it on once you have an MQTT broker (e.g. Mosquitto) running with ESPHome and/or Zigbee2MQTT publishing to it — the API starts a background MQTT client and ingestion loop at boot when this is `true`. No Home Assistant installation is required; the ingestion service talks to the broker directly.
 
 ---
 
@@ -480,6 +517,7 @@ Sentinel Vault is organized around these main backend modules:
 |---|---|
 | `/auth` | Login, token handling, current user |
 | `/cameras` | Camera management and stream access |
+| `/devices` | Non-camera device registry (presence/door/doorbell sensors) fed by MQTT ingestion |
 | `/recordings` | Recording lifecycle management |
 | `/playback` | Playback availability and video delivery |
 | `/events` | Event listing, filtering, and statistics |
@@ -507,6 +545,7 @@ Sentinel_vault/
 │       ├── modules/
 │       │   ├── auth/
 │       │   ├── cameras/
+│       │   ├── devices/
 │       │   ├── events/
 │       │   ├── playback/
 │       │   ├── recordings/
@@ -539,15 +578,17 @@ cd api
 pytest
 ```
 
-**Current status: 63 passed, 0 failed** (full suite, run against SQLite; verified with `python -m pytest -q`).
+**Current status: 95 passed, 0 failed** (full suite, run against SQLite; verified with `python -m pytest -q`).
 
-The suite covers auth, cameras, recordings, playback, events, users, settings, and the setup wizard, plus two files added specifically for the security work described above:
+The suite covers auth, cameras, recordings, playback, events, users, settings, and the setup wizard, plus dedicated files for the security work described above and for the devices/MQTT sensor pipeline:
 
 | Test file | Tests | What's covered |
 |---|---|---|
 | `tests/test_crypto.py` | 9 | Bytes and string roundtrip (including RTSP URLs with embedded credentials), legacy-plaintext passthrough for pre-existing unencrypted URLs, tamper detection (`InvalidTag` raised on modified ciphertext), file encrypt-in-place plus decrypted-temp-copy cleanup, key file permissions (`0600`), key persistence across a `KeyManager` reload, and passthrough behavior when encryption is disabled |
 | `tests/test_audit.py` | 6 | Login success/failure is audited (including that a failed-login row survives the request rollback that follows an auth error), camera create/update/delete is audited, settings writes are audited, and user create/delete is audited — with explicit assertions that RTSP credentials and passwords never appear in the logged `details_json` |
 | `tests/test_playback_export.py` | 6 | Arbitrary time-range clip export: single-segment export, multi-segment export spanning two recordings (trim + concat), 404 when no recordings overlap the range, 400 for an end-before-start range, 400 for a range exceeding the 2-hour cap, and 401 for missing auth — all run against real ffmpeg-generated test videos so the transcode/concat path is exercised for real, not mocked |
+| `tests/test_devices.py` | 5 | Device CRUD (create/list/get/update/delete), and that deleting a device cascades to delete its associated events |
+| `tests/test_mqtt_ingest.py` | 27 | Pure topic/payload parsing (`is_status_topic`, `device_matches_status_topic`, `extract_binary_state` including Zigbee2MQTT's inverted `contact` key and ESPHome plain-text ON/OFF payloads, `event_type_for_state`, `importance_for_event_type`), plus DB-backed handler tests for status transitions (`device_offline` event only created on an online→offline transition, no-op on a repeated status) and state-message ingestion (event creation with correct `device_id`/`event_type`/`importance`, device `status` flipped to `online`) |
 
 Beyond the automated suite, the encryption pipeline was also verified with a live end-to-end run: a real camera recording was captured, closed, and persisted, then downloaded, played back through the H.264 transcode route, and served via the event thumbnail/clip routes — confirming files stay `SVEN1`-encrypted on disk at every stage and are decrypted only at the moment of serving. The clip export endpoint was similarly verified live: two encrypted recording segments were seeded, an 8-second range spanning both was requested through the running API, and the response came back as a valid, correctly-trimmed MP4 with the expected `Content-Disposition: attachment` filename — confirming the decrypt → trim → concat → serve pipeline works end-to-end, not just in mocked tests.
 
@@ -590,18 +631,22 @@ ruff format .
 - **Camera offline detection and alerts** (backend heartbeat monitoring with real-time WebSocket push, toast, chime, and desktop notification)
 - **Video clip export and download** (arbitrary time-range export spanning multiple recording segments, transcoded and concatenated on demand, plus one-click download for events, full recording segments, and exported ranges)
 - **Multi-camera synchronized grid playback** (shared master clock with drift correction across tiles)
+- **Device registry and MQTT sensor ingestion** — presence sensors, door/window sensors, and doorbell buttons via ESPHome and Zigbee2MQTT, feeding the same Events pipeline and real-time alerts as cameras (no Home Assistant required)
+- **Devices management UI** — dedicated page to add, view, and remove sensors, with online/offline status and sensor events surfaced in Events and the dashboard
 
 ### 🔜 Coming Soon
 - Two-factor authentication (TOTP)
 - Background transcoding pipeline
 - Push notifications (browser, email, Discord)
 - Production Docker Compose with Nginx
+- Home Assistant integration (expose Sentinel Vault devices/events as HA entities, alongside the existing direct-MQTT path)
 
 ### 🔮 Future
 - ONVIF camera auto-discovery
 - Mobile app (React Native)
 - Multi-site support with remote access
 - Prometheus metrics and Grafana dashboards
+- DIY hardware guides for 3D-printed ESP32 sensor enclosures
 
 ---
 

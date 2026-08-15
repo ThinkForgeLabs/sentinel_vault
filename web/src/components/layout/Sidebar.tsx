@@ -2,6 +2,7 @@ import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Home,
   Video,
+  Radio,
   LayoutGrid,
   Zap,
   Clock,
@@ -17,6 +18,7 @@ import { useAuth } from "@/hooks/useAuth";
 const items = [
   { to: "/", label: "Home", icon: Home },
   { to: "/cameras", label: "Cameras", icon: Video },
+  { to: "/devices", label: "Devices", icon: Radio },
   { to: "/wall", label: "Wall View", icon: LayoutGrid },
   { to: "/events", label: "Events", icon: Zap },
   { to: "/playback", label: "Playback", icon: Clock },

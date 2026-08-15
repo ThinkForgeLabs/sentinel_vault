@@ -20,6 +20,8 @@ async def list_events(
 
     if filters.camera_id:
         stmt = stmt.where(Event.camera_id == filters.camera_id)
+    if filters.device_id:
+        stmt = stmt.where(Event.device_id == filters.device_id)
     if filters.event_type:
         stmt = stmt.where(Event.event_type == filters.event_type)
     if filters.importance:

@@ -7,6 +7,7 @@ export const eventsApi = {
   list: (filters?: EventFilters) => {
     const params: Record<string, string> = {};
     if (filters?.camera_id) params.camera_id = filters.camera_id;
+    if (filters?.device_id) params.device_id = filters.device_id;
     if (filters?.event_type) params.event_type = filters.event_type;
     if (filters?.importance) params.importance = filters.importance;
     if (filters?.page) params.page = String(filters.page);

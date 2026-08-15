@@ -5,6 +5,7 @@ import LoginPage from "@/pages/Login";
 import SetupPage from "@/pages/Setup";
 import DashboardPage from "@/pages/Dashboard";
 import CamerasPage from "@/pages/Cameras";
+import DevicesPage from "@/pages/Devices";
 import WallPage from "@/pages/Wall";
 import EventsPage from "@/pages/Events";
 import PlaybackPage from "@/pages/Playback";
@@ -33,6 +34,7 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <DashboardPage /> },
           { path: "cameras", element: <CamerasPage /> },
+          { path: "devices", element: <DevicesPage /> },
           { path: "wall", element: <WallPage /> },
           { path: "events", element: <EventsPage /> },
           { path: "playback", element: <PlaybackPage /> },

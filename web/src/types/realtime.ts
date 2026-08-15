@@ -3,8 +3,10 @@ import type { Importance } from "./common";
 export interface AlertMessage {
   type: string;
   event_id: string | null;
-  camera_id: string;
+  camera_id: string | null;
   camera_name: string | null;
+  device_id: string | null;
+  device_name: string | null;
   event_type: string;
   subtype: string | null;
   importance: Importance;

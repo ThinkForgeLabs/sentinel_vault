@@ -147,6 +147,7 @@ async def _safe_unlink(path: Path, retries: int = 3, delay: float = 0.5):
 @router.get("", response_model=list[EventResponse])
 async def list_events(
     camera_id: uuid.UUID | None = Query(None),
+    device_id: uuid.UUID | None = Query(None),
     event_type: str | None = Query(None),
     importance: str | None = Query(None),
     after: datetime | None = Query(None),
@@ -160,6 +161,8 @@ async def list_events(
 
     if camera_id:
         q = q.where(Event.camera_id == camera_id)
+    if device_id:
+        q = q.where(Event.device_id == device_id)
     if event_type:
         q = q.where(Event.event_type == event_type)
     if importance:

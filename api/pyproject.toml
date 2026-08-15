@@ -21,6 +21,12 @@ dependencies = [
     "redis>=5.0.0",
     "opencv-python-headless>=4.9.0",
     "numpy>=1.26.0",
+    # MQTT client for ingesting ESPHome / Zigbee2MQTT sensor devices
+    # (app/modules/devices/mqtt_manager.py). Pinned below 2.0 to keep the
+    # simple pre-VERSION2 callback signatures (on_connect/on_message with
+    # positional args), matching how this codebase's other singleton
+    # managers are written.
+    "paho-mqtt>=1.6.1,<2.0.0",
 ]
 
 [project.optional-dependencies]
