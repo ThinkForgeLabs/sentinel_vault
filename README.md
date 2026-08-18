@@ -45,7 +45,7 @@ It is built to provide the core features you need:
 - **local encryption at rest for every recording, clip, thumbnail, and stored camera credential**
 - **MQTT-based sensor integration** — presence sensors, door/window sensors, and doorbell buttons (ESPHome and Zigbee2MQTT) feed events into the same dashboard and alert pipeline as your cameras
 
-**No cloud required. No subscriptions. Your cameras, your data, your server.**
+**No cloud required. No subscriptions required. Your cameras, your data, your server.**
 
 ---
 
