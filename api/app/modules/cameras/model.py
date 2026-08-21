@@ -1,8 +1,7 @@
 from sqlalchemy import Boolean, ForeignKey, Integer, String, Text
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.base import Base, TimestampMixin, UUIDMixin
+from app.db.base import GUID, Base, TimestampMixin, UUIDMixin
 
 
 class Camera(UUIDMixin, TimestampMixin, Base):
@@ -24,7 +23,7 @@ class CameraZone(UUIDMixin, TimestampMixin, Base):
     __tablename__ = "camera_zones"
 
     camera_id: Mapped[str] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("cameras.id", ondelete="CASCADE"), nullable=False
+        GUID(), ForeignKey("cameras.id", ondelete="CASCADE"), nullable=False
     )
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     polygon_json: Mapped[str] = mapped_column(Text, default="[]")

@@ -1,10 +1,9 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, Boolean
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.db.base import Base, TimestampMixin, UUIDMixin
+from app.db.base import GUID, Base, TimestampMixin, UUIDMixin
 
 
 class Event(UUIDMixin, TimestampMixin, Base):
@@ -16,10 +15,10 @@ class Event(UUIDMixin, TimestampMixin, Base):
     # nullable so the same Event table can carry video-camera events and
     # non-camera sensor events (door/presence/doorbell) side by side.
     camera_id: Mapped[str | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("cameras.id", ondelete="CASCADE"), nullable=True
+        GUID(), ForeignKey("cameras.id", ondelete="CASCADE"), nullable=True
     )
     device_id: Mapped[str | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("devices.id", ondelete="CASCADE"), nullable=True
+        GUID(), ForeignKey("devices.id", ondelete="CASCADE"), nullable=True
     )
     event_type: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     subtype: Mapped[str | None] = mapped_column(String(100))
