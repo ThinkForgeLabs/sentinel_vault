@@ -578,7 +578,7 @@ cd api
 pytest
 ```
 
-**Current status: 95 passed, 0 failed** (full suite, run against SQLite; verified with `python -m pytest -q`).
+**Current status: 97 passed, 0 failed** (full suite, run against SQLite; verified with `python -m pytest -q`).
 
 The suite covers auth, cameras, recordings, playback, events, users, settings, and the setup wizard, plus dedicated files for the security work described above and for the devices/MQTT sensor pipeline:
 
@@ -589,6 +589,7 @@ The suite covers auth, cameras, recordings, playback, events, users, settings, a
 | `tests/test_playback_export.py` | 6 | Arbitrary time-range clip export: single-segment export, multi-segment export spanning two recordings (trim + concat), 404 when no recordings overlap the range, 400 for an end-before-start range, 400 for a range exceeding the 2-hour cap, and 401 for missing auth — all run against real ffmpeg-generated test videos so the transcode/concat path is exercised for real, not mocked |
 | `tests/test_devices.py` | 5 | Device CRUD (create/list/get/update/delete), and that deleting a device cascades to delete its associated events |
 | `tests/test_mqtt_ingest.py` | 27 | Pure topic/payload parsing (`is_status_topic`, `device_matches_status_topic`, `extract_binary_state` including Zigbee2MQTT's inverted `contact` key and ESPHome plain-text ON/OFF payloads, `event_type_for_state`, `importance_for_event_type`), plus DB-backed handler tests for status transitions (`device_offline` event only created on an online→offline transition, no-op on a repeated status) and state-message ingestion (event creation with correct `device_id`/`event_type`/`importance`, device `status` flipped to `online`) |
+| `tests/test_guid_type.py` | 2 | Regression coverage for the custom `GUID` SQLAlchemy type, confirming UUID primary keys round-trip correctly on SQLite instead of silently corrupting to integers |
 
 Beyond the automated suite, the encryption pipeline was also verified with a live end-to-end run: a real camera recording was captured, closed, and persisted, then downloaded, played back through the H.264 transcode route, and served via the event thumbnail/clip routes — confirming files stay `SVEN1`-encrypted on disk at every stage and are decrypted only at the moment of serving. The clip export endpoint was similarly verified live: two encrypted recording segments were seeded, an 8-second range spanning both was requested through the running API, and the response came back as a valid, correctly-trimmed MP4 with the expected `Content-Disposition: attachment` filename — confirming the decrypt → trim → concat → serve pipeline works end-to-end, not just in mocked tests.
 
@@ -598,6 +599,28 @@ If you use linting/formatting tools:
 ruff check .
 ruff format .
 ```
+
+### Frontend
+
+```bash
+cd web
+npm run test        # one-off run (vitest run)
+npm run test:watch  # watch mode
+```
+
+Built on [Vitest](https://vitest.dev/) + [React Testing Library](https://testing-library.com/react) with a `jsdom` environment (config in `web/vite.config.ts`, setup in `web/src/setupTests.ts`).
+
+**Current status: 25 passed, 0 failed.**
+
+| Test file | Tests | What's covered |
+|---|---|---|
+| `src/api/devices.test.ts` | 5 | `devicesApi.list/create/delete`, bearer token header injection, and that a `401` response triggers logout plus a readable error message |
+| `src/pages/Devices/DeviceCard.test.tsx` | 6 | Name/location/type/protocol rendering, online/offline and disabled badges, the "No location" fallback, and the delete button callback |
+| `src/pages/Devices/DeviceForm.test.tsx` | 4 | Client-side validation (blank name/topic), a successful create flow, an API-failure error toast, and the Cancel button |
+| `src/pages/Devices/Devices.test.tsx` | 4 | Empty state, device card rendering, the full delete flow (confirm → API call → toast → list refetch), and that a failed deletion shows an error toast while keeping the device visible |
+| `src/hooks/useRealtimeAlerts.test.ts` | 6 | WebSocket connect/disconnect gating on auth state, connected-state toggling, incoming alerts updating the store and firing a toast, malformed JSON frames being ignored, and socket cleanup on unmount |
+
+These tests exercise the Devices feature end-to-end at the component level (API client → form → list → realtime hook) without needing a router or store `Provider` — Zustand stores in this codebase are plain module-level singletons, so tests read/reset them directly via `useXStore.getState()` / `.setState()`.
 
 ---
 
