@@ -3,25 +3,36 @@ import { Topbar } from "@/components/layout/Topbar";
 import { cn } from "@/lib/cn";
 import { GeneralSection } from "./GeneralSection";
 import { StorageSection } from "./StorageSection";
+import { AccountsSection } from "./AccountsSection";
+import { AlertsSection } from "./AlertsSection";
+import { CamerasSection } from "./CamerasSection";
 
 const SECTIONS = [
   "General",
   "Storage",
   "Cameras",
-  "Privacy",
+  "Alerts",
   "Accounts",
   "Updates",
 ];
+
+const WIDE_SECTIONS = new Set(["Accounts"]);
 
 export default function SettingsPage() {
   const [section, setSection] = useState(0);
 
   const renderSection = () => {
-    switch (section) {
-      case 0:
+    switch (SECTIONS[section]) {
+      case "General":
         return <GeneralSection />;
-      case 1:
+      case "Storage":
         return <StorageSection />;
+      case "Cameras":
+        return <CamerasSection />;
+      case "Alerts":
+        return <AlertsSection />;
+      case "Accounts":
+        return <AccountsSection />;
       default:
         return (
           <p className="text-sm text-gray-500">
@@ -55,7 +66,12 @@ export default function SettingsPage() {
 
         {/* Settings content */}
         <div className="flex-1 overflow-y-auto p-4 lg:p-6">
-          <div className="card max-w-2xl animate-fade-in">
+          <div
+            className={cn(
+              "card animate-fade-in",
+              WIDE_SECTIONS.has(SECTIONS[section]) ? "max-w-3xl" : "max-w-2xl"
+            )}
+          >
             <h3 className="mb-6 text-lg font-bold">{SECTIONS[section]}</h3>
             {renderSection()}
           </div>

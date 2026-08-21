@@ -17,6 +17,16 @@ class UserUpdate(BaseModel):
     is_active: bool | None = None
 
 
+class SelfUpdate(BaseModel):
+    """Fields a user may change about their own account. Changing the
+    password requires proving the current one — unlike UserUpdate, which
+    is owner-gated and never sees a password field at all."""
+
+    display_name: str | None = Field(None, min_length=1, max_length=200)
+    current_password: str | None = None
+    new_password: str | None = Field(None, min_length=8)
+
+
 class UserOut(BaseModel):
     id: uuid.UUID
     username: str

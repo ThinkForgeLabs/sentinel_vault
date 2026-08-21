@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     encryption_enabled: bool = True
     segment_duration_minutes: int = 15
 
+    # Local at-rest encryption — where the key-encrypting key (KEK) and the
+    # wrapped data-encryption key (DEK) are stored. See app/core/crypto.py.
+    keys_root: str = "./data/keys"
+
     # CORS
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
@@ -42,6 +46,19 @@ class Settings(BaseSettings):
     api_host: str = "0.0.0.0"
     api_port: int = 8000
     api_prefix: str = "/api/v1"
+
+    # MQTT (sensor ingestion — ESPHome presence/door sensors, Zigbee2MQTT
+    # door/window/motion sensors). Disabled by default so installs without
+    # a broker never attempt a connection. See app/modules/devices/.
+    mqtt_enabled: bool = False
+    mqtt_broker_host: str = "localhost"
+    mqtt_broker_port: int = 1883
+    mqtt_username: str = ""
+    mqtt_password: str = ""
+    # Topic prefixes to subscribe under (wildcarded with /#). Devices are
+    # matched against incoming messages by their configured mqtt_topic.
+    mqtt_esphome_topic_prefix: str = "esphome"
+    mqtt_zigbee2mqtt_topic_prefix: str = "zigbee2mqtt"
 
 
 @lru_cache

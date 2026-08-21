@@ -1,4 +1,5 @@
 import os
+import sys
 import threading
 import time
 from typing import Optional
@@ -93,10 +94,19 @@ class CaptureManager:
         dev = self._devices[key]
         source = dev["source"]
 
-        # Open capture
+        # Open capture. USB backend must be platform-appropriate:
+        # CAP_DSHOW is Windows-only and silently fails to open on Linux
+        # (e.g. a Raspberry Pi 5), so pick the backend based on the host
+        # platform instead of hardcoding one — mirrors the fix already
+        # applied to the USB discovery scan in cameras/router.py.
         if source.startswith("usb://"):
             index = int(source.replace("usb://", ""))
-            cap = cv2.VideoCapture(index, cv2.CAP_DSHOW)
+            if sys.platform.startswith("linux"):
+                cap = cv2.VideoCapture(index, cv2.CAP_V4L2)
+            elif sys.platform == "win32":
+                cap = cv2.VideoCapture(index, cv2.CAP_DSHOW)
+            else:
+                cap = cv2.VideoCapture(index)
         else:
             cap = cv2.VideoCapture(source)
 

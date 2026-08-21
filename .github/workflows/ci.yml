@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, "feature/**"]
   pull_request:
     branches: [main]
 
@@ -35,7 +35,7 @@ jobs:
         run: pytest tests/ -v
 
   frontend:
-    name: Frontend (lint, type-check, build)
+    name: Frontend (lint, type-check, test, build)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -58,6 +58,9 @@ jobs:
 
       - name: Type-check
         run: npm run type-check
+
+      - name: Test
+        run: npm run test
 
       - name: Build
         run: npm run build

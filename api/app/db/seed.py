@@ -6,6 +6,7 @@ Run with: python -m app.db.seed
 import asyncio
 import uuid
 
+from app.core import crypto
 from app.core.security import hash_password
 from app.db.session import async_session_factory
 from app.modules.auth.model import User
@@ -42,7 +43,7 @@ async def seed() -> None:
             cam = Camera(
                 name=cam_data["name"],
                 location_label=cam_data["location_label"],
-                rtsp_url_encrypted=cam_data["rtsp_url"],
+                rtsp_url_encrypted=crypto.encrypt_str(cam_data["rtsp_url"]),
                 status="offline",
                 record_enabled=True,
                 retention_days=14,

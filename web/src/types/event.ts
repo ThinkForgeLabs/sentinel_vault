@@ -2,7 +2,8 @@ import type { Importance, ReviewStatus } from "./common";
 
 export interface CameraEvent {
   id: string;
-  camera_id: string;
+  camera_id: string | null;
+  device_id: string | null;
   event_type: string;
   subtype: string | null;
   started_at: string;
@@ -25,6 +26,7 @@ export interface EventStats {
 
 export interface EventFilters {
   camera_id?: string;
+  device_id?: string;
   event_type?: string;
   importance?: Importance;
   page?: number;

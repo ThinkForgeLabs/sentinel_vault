@@ -13,6 +13,7 @@ from app.core.security import (
 )
 from app.modules.auth.model import User
 from app.modules.auth.schemas import LoginRequest, TokenResponse
+from app.services.audit import log_action, log_action_standalone
 
 
 async def authenticate(db: AsyncSession, data: LoginRequest) -> TokenResponse:
@@ -21,13 +22,38 @@ async def authenticate(db: AsyncSession, data: LoginRequest) -> TokenResponse:
     user = result.scalar_one_or_none()
 
     if user is None or not verify_password(data.password, user.password_hash):
+        # log_action_standalone commits on its own connection so this row
+        # survives the rollback get_db() triggers when UnauthorizedError
+        # propagates out of this request.
+        await log_action_standalone(
+            actor_id=str(user.id) if user else None,
+            action="login_failed",
+            resource_type="auth",
+            resource_id=data.username,
+            details={"reason": "invalid_credentials"},
+        )
         raise UnauthorizedError("Invalid username or password")
 
     if not user.is_active:
+        await log_action_standalone(
+            actor_id=str(user.id),
+            action="login_failed",
+            resource_type="auth",
+            resource_id=data.username,
+            details={"reason": "account_disabled"},
+        )
         raise UnauthorizedError("Account is disabled")
 
     access = create_access_token(str(user.id), {"role": user.role})
     refresh = create_refresh_token(str(user.id))
+
+    await log_action(
+        db,
+        actor_id=str(user.id),
+        action="login_success",
+        resource_type="auth",
+        resource_id=data.username,
+    )
 
     return TokenResponse(
         access_token=access,

@@ -17,6 +17,7 @@ Built with FastAPI · React · PostgreSQL · Redis · FFmpeg
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
 [Overview](#-overview) •
+[Screenshots](#-screenshots) •
 [Features](#-features) •
 [Architecture](#-architecture) •
 [Quick Start](#-quick-start) •
@@ -41,8 +42,61 @@ It is built to provide the core features you need:
 - user and role management
 - storage retention
 - self-hosted deployment
+- **local encryption at rest for every recording, clip, thumbnail, and stored camera credential**
+- **MQTT-based sensor integration** — presence sensors, door/window sensors, and doorbell buttons (ESPHome and Zigbee2MQTT) feed events into the same dashboard and alert pipeline as your cameras
 
-**No cloud required. No subscriptions. Your cameras, your data, your server.**
+**No cloud required. No subscriptions required. Your cameras, your data, your server.**
+
+---
+
+## 🖼️ Screenshots
+
+<table>
+<tr>
+<td width="50%">
+
+**Dashboard**
+At-a-glance camera status, today's events, and recent activity.
+
+![Dashboard](docs/screenshots/dashboard.png)
+
+</td>
+<td width="50%">
+
+**Cameras**
+Live thumbnails for every configured camera, with recording status and retention.
+
+![Cameras](docs/screenshots/cameras.png)
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**Wall View**
+All cameras in a synchronized grid, live or scrubbed together.
+
+![Wall View](docs/screenshots/wall-view.png)
+
+</td>
+<td width="50%">
+
+**Playback**
+Timeline scrubbing with event markers, plus range export and download.
+
+![Playback](docs/screenshots/playback.png)
+
+</td>
+</tr>
+</table>
+
+**Events** — filterable motion and camera-offline activity across all cameras.
+
+![Events](docs/screenshots/events.png)
+
+**Devices** — manage non-camera sensors (presence, door/window, doorbell) ingested over MQTT, with live online/offline status.
+
+![Devices](docs/screenshots/devices.png)
 
 ---
 
@@ -62,20 +116,40 @@ It is built to provide the core features you need:
 ### 🎞️ Playback & Timeline
 - Playback by **camera** and **date**
 - Segment navigation for recorded footage
-- Timeline-based browsing
+- **Visual timeline with event markers** — motion and offline events are plotted directly on the scrubber so you can jump straight to the moment that matters
 - Real-time playback review
 - On-the-fly **H.264 transcoding** with caching for browser playback
+- **Video clip export and download** — drag-select an arbitrary time range (spanning multiple recording segments) and export it as a single trimmed, concatenated MP4, or download individual event clips and full segments with one click
+
+### 🖥️ Wall View
+- **Multi-camera synchronized grid playback** — watch every camera at once, live or scrubbed together, with a shared master clock and drift correction across tiles
+- Live and recorded modes with per-camera toggles
+- Responsive grid that adapts to camera count
 
 ### 🚨 Events & Detection
 - Motion detection
+- **Camera offline detection and alerts** — backend heartbeat monitoring pushes real-time WebSocket alerts, with toast, chime, and desktop notification when a camera drops off
 - Event logging with severity levels
 - Event statistics dashboard
 - Filterable event history and review workflow
+
+### 📡 Devices & Sensors
+- **Device registry** for non-camera hardware — presence sensors, door/window sensors, and doorbell buttons, managed from a dedicated Devices page (add, edit, enable/disable, delete)
+- **MQTT ingestion service** running as a background task alongside the API — subscribes to **ESPHome** status/state topics and **Zigbee2MQTT** friendly-name topics, no Home Assistant installation required
+- Automatic **online/offline tracking** per device from MQTT availability/status messages, with a `device_offline` event and alert generated on transition
+- Sensor state changes (door opened, presence detected, doorbell pressed) are normalized into the same **Events** pipeline as camera motion — same importance levels, same real-time WebSocket alerts, same dashboard and event history
+- Handles Zigbee2MQTT's inverted `contact` payload convention and common ESPHome binary-sensor payload shapes automatically
 
 ### 🔐 Authentication & Access Control
 - JWT authentication
 - Role-based access control
 - User management with **Owner**, **Admin**, and **Viewer** roles
+
+### 🔒 Encryption & Audit (see [Security & Encryption](#-security--encryption) below)
+- Local encryption at rest for recordings, clips, thumbnails, and RTSP credentials
+- Envelope encryption (AES-256-GCM) with an auto-generated, file-protected key
+- Full audit trail for logins, settings changes, and user/camera management
+- Startup enforcement that blocks production boots on a default/placeholder secret key
 
 ### 🛠️ Platform & Operations
 - Dark-themed responsive UI
@@ -87,21 +161,62 @@ It is built to provide the core features you need:
 
 ---
 
+## 🔒 Security & Encryption
+
+Sentinel Vault's differentiator is that **security is the default, not an add-on.** Everything below is active out of the box — there's no separate "secure mode" to enable.
+
+### Encryption at rest
+
+All recorded video, clips, and thumbnails are encrypted on disk using **envelope encryption**:
+
+- A **key-encrypting key (KEK)** is auto-generated on first run and stored in a file with restrictive `0600` permissions — readable only by the user running the app.
+- The KEK wraps a random **256-bit data-encryption key (DEK)**, which is what actually encrypts your files. This means the DEK never touches disk in plaintext, and rotating the KEK doesn't require re-encrypting every recording.
+- Each file is encrypted with **AES-256-GCM** (authenticated encryption — tampering with a file causes decryption to fail loudly rather than silently returning corrupted video). On-disk format is `SVEN1` magic bytes + a 12-byte nonce + ciphertext and auth tag.
+
+**How it fits into the recording pipeline:**
+
+| Stage | What happens |
+|---|---|
+| Segment/clip is being written | Written as plaintext by the video encoder (OpenCV/ffmpeg can't write directly to an encrypted stream) |
+| Segment/clip is closed | Encrypted in place immediately — the plaintext window only exists while the file is actively being written |
+| Viewing / downloading / playback | Decrypted to a short-lived temporary file (or in-memory for thumbnails) only for the duration of the response, then the plaintext copy is deleted |
+| Transcoded playback cache (H.264) | Re-encrypted immediately after ffmpeg produces it |
+
+The result: if someone copies your storage volume, plugs in a stolen drive, or gets access to a backup, the recordings are unreadable without the key material on the running server.
+
+### Encrypted secrets in the database
+
+Camera **RTSP URLs** often embed credentials (`rtsp://user:pass@host:554/stream`). These are encrypted at rest in the database using the same AES-256-GCM scheme, and only decrypted in memory when the recorder actually needs to connect to the camera. Legacy plaintext URLs from older installs are detected automatically and still work — no forced migration step.
+
+### Audit logging
+
+Every security-relevant action writes an audit log entry: login success/failure (with reason — invalid credentials vs. disabled account), settings changes, setup-wizard completion, and user/camera create/update/delete. Audit entries never contain secrets — they log *what* changed (e.g. which fields, which camera name) rather than sensitive values, so RTSP credentials and passwords never leak into the audit trail even if the database itself is later exposed.
+
+### Startup hardening
+
+The app refuses to start in a non-development environment if `SECRET_KEY` is still the shipped placeholder value — preventing an easy-to-miss deployment mistake from leaving JWT signing on a publicly known key.
+
+### Explicitly out of scope (for now)
+
+Two-factor authentication (TOTP) was evaluated and intentionally deferred — it's a natural next step but wasn't part of this security pass. See [Roadmap](#-roadmap).
+
+---
+
 ## 🏗️ Architecture
 
 ```text
-┌──────────────────────────────────────────────────────────────┐
-│                        React Frontend                        │
-│                 Vite + TypeScript + Tailwind                │
+┌────────────────────────────────────────────────────────────┐
+│                       React Frontend                        │
+│                Vite + TypeScript + Tailwind                 │
 │                                                              │
-│    Dashboard · Cameras · Events · Playback · Settings       │
+│  Dashboard · Cameras · Devices · Events · Playback · Settings │
 └───────────────────────────┬──────────────────────────────────┘
                             │ REST API + WebSocket
 ┌───────────────────────────┼──────────────────────────────────┐
 │                     FastAPI Backend                          │
 │                                                              │
-│  Auth · Cameras · Recordings · Playback · Events · Users    │
-│  Settings · FFmpeg integration · Background processing       │
+│  Auth · Cameras · Devices · Recordings · Playback · Events  │
+│  Users · Settings · FFmpeg integration · MQTT ingestion task │
 └───────────────┬───────────────────────────────┬──────────────┘
                 │                               │
         ┌───────▼────────┐              ┌───────▼───────┐
@@ -115,7 +230,15 @@ It is built to provide the core features you need:
                   │ recordings  │
                   │ segments    │
                   └─────────────┘
+
+┌──────────────────────────┐        ┌──────────────────────────────┐
+│  Sensor hardware          │        │  MQTT ingestion (background   │
+│  ESPHome · Zigbee2MQTT   │──MQTT─▶│  task inside FastAPI process)  │
+│  presence/door/doorbell  │        │  paho-mqtt → Devices + Events  │
+└──────────────────────────┘        └──────────────────────────────┘
 ```
+
+The MQTT ingestion task runs inside the same FastAPI process (started in the app lifespan when `MQTT_ENABLED=true`), polling a thread-safe message queue and writing directly to the same `devices` and `events` tables the REST API and WebSocket layer read from — no separate service or Home Assistant installation required.
 
 ---
 
@@ -132,6 +255,7 @@ It is built to provide the core features you need:
 | Redis | Caching layer |
 | Alembic | Database migrations |
 | FFmpeg | Camera ingest and transcoding |
+| paho-mqtt | MQTT client for ESPHome/Zigbee2MQTT sensor ingestion |
 | Pydantic | Validation and configuration |
 | Uvicorn | ASGI server |
 
@@ -184,6 +308,14 @@ REDIS_URL=redis://localhost:6379/0
 STORAGE_ROOT=./data/recordings
 CORS_ORIGINS=["http://localhost:5173"]
 SEGMENT_DURATION_MINUTES=15
+ENCRYPTION_ENABLED=true
+MQTT_ENABLED=false
+MQTT_BROKER_HOST=localhost
+MQTT_BROKER_PORT=1883
+MQTT_USERNAME=
+MQTT_PASSWORD=
+MQTT_ESPHOME_TOPIC_PREFIX=esphome
+MQTT_ZIGBEE2MQTT_TOPIC_PREFIX=zigbee2mqtt
 ```
 
 ### Example for Dockerized backend
@@ -195,9 +327,23 @@ REDIS_URL=redis://redis:6379/0
 STORAGE_ROOT=/data/recordings
 CORS_ORIGINS=["http://localhost:5173"]
 SEGMENT_DURATION_MINUTES=15
+ENCRYPTION_ENABLED=true
+MQTT_ENABLED=false
+MQTT_BROKER_HOST=mosquitto
+MQTT_BROKER_PORT=1883
+MQTT_USERNAME=
+MQTT_PASSWORD=
+MQTT_ESPHOME_TOPIC_PREFIX=esphome
+MQTT_ZIGBEE2MQTT_TOPIC_PREFIX=zigbee2mqtt
 ```
 
 > **Note:** Use `localhost` when the backend runs on your machine, and use Docker service names like `postgres` and `redis` when the backend runs inside Docker.
+>
+> **Note on `SECRET_KEY`:** the app will refuse to start outside `development` if this is left as the shipped placeholder value — generate a real random value (e.g. `openssl rand -hex 32`) before deploying.
+>
+> **Note on `ENCRYPTION_ENABLED`:** on by default. When enabled, a key file is auto-generated at `data/keys/` on first run (see [Security & Encryption](#-security--encryption)) — back that directory up along with your database, since losing it makes existing recordings unrecoverable.
+>
+> **Note on `MQTT_ENABLED`:** off by default. Turn it on once you have an MQTT broker (e.g. Mosquitto) running with ESPHome and/or Zigbee2MQTT publishing to it — the API starts a background MQTT client and ingestion loop at boot when this is `true`. No Home Assistant installation is required; the ingestion service talks to the broker directly.
 
 ---
 
@@ -371,6 +517,7 @@ Sentinel Vault is organized around these main backend modules:
 |---|---|
 | `/auth` | Login, token handling, current user |
 | `/cameras` | Camera management and stream access |
+| `/devices` | Non-camera device registry (presence/door/doorbell sensors) fed by MQTT ingestion |
 | `/recordings` | Recording lifecycle management |
 | `/playback` | Playback availability and video delivery |
 | `/events` | Event listing, filtering, and statistics |
@@ -398,6 +545,7 @@ Sentinel_vault/
 │       ├── modules/
 │       │   ├── auth/
 │       │   ├── cameras/
+│       │   ├── devices/
 │       │   ├── events/
 │       │   ├── playback/
 │       │   ├── recordings/
@@ -430,12 +578,49 @@ cd api
 pytest
 ```
 
+**Current status: 97 passed, 0 failed** (full suite, run against SQLite; verified with `python -m pytest -q`).
+
+The suite covers auth, cameras, recordings, playback, events, users, settings, and the setup wizard, plus dedicated files for the security work described above and for the devices/MQTT sensor pipeline:
+
+| Test file | Tests | What's covered |
+|---|---|---|
+| `tests/test_crypto.py` | 9 | Bytes and string roundtrip (including RTSP URLs with embedded credentials), legacy-plaintext passthrough for pre-existing unencrypted URLs, tamper detection (`InvalidTag` raised on modified ciphertext), file encrypt-in-place plus decrypted-temp-copy cleanup, key file permissions (`0600`), key persistence across a `KeyManager` reload, and passthrough behavior when encryption is disabled |
+| `tests/test_audit.py` | 6 | Login success/failure is audited (including that a failed-login row survives the request rollback that follows an auth error), camera create/update/delete is audited, settings writes are audited, and user create/delete is audited — with explicit assertions that RTSP credentials and passwords never appear in the logged `details_json` |
+| `tests/test_playback_export.py` | 6 | Arbitrary time-range clip export: single-segment export, multi-segment export spanning two recordings (trim + concat), 404 when no recordings overlap the range, 400 for an end-before-start range, 400 for a range exceeding the 2-hour cap, and 401 for missing auth — all run against real ffmpeg-generated test videos so the transcode/concat path is exercised for real, not mocked |
+| `tests/test_devices.py` | 5 | Device CRUD (create/list/get/update/delete), and that deleting a device cascades to delete its associated events |
+| `tests/test_mqtt_ingest.py` | 27 | Pure topic/payload parsing (`is_status_topic`, `device_matches_status_topic`, `extract_binary_state` including Zigbee2MQTT's inverted `contact` key and ESPHome plain-text ON/OFF payloads, `event_type_for_state`, `importance_for_event_type`), plus DB-backed handler tests for status transitions (`device_offline` event only created on an online→offline transition, no-op on a repeated status) and state-message ingestion (event creation with correct `device_id`/`event_type`/`importance`, device `status` flipped to `online`) |
+| `tests/test_guid_type.py` | 2 | Regression coverage for the custom `GUID` SQLAlchemy type, confirming UUID primary keys round-trip correctly on SQLite instead of silently corrupting to integers |
+
+Beyond the automated suite, the encryption pipeline was also verified with a live end-to-end run: a real camera recording was captured, closed, and persisted, then downloaded, played back through the H.264 transcode route, and served via the event thumbnail/clip routes — confirming files stay `SVEN1`-encrypted on disk at every stage and are decrypted only at the moment of serving. The clip export endpoint was similarly verified live: two encrypted recording segments were seeded, an 8-second range spanning both was requested through the running API, and the response came back as a valid, correctly-trimmed MP4 with the expected `Content-Disposition: attachment` filename — confirming the decrypt → trim → concat → serve pipeline works end-to-end, not just in mocked tests.
+
 If you use linting/formatting tools:
 
 ```bash
 ruff check .
 ruff format .
 ```
+
+### Frontend
+
+```bash
+cd web
+npm run test        # one-off run (vitest run)
+npm run test:watch  # watch mode
+```
+
+Built on [Vitest](https://vitest.dev/) + [React Testing Library](https://testing-library.com/react) with a `jsdom` environment (config in `web/vite.config.ts`, setup in `web/src/setupTests.ts`).
+
+**Current status: 25 passed, 0 failed.**
+
+| Test file | Tests | What's covered |
+|---|---|---|
+| `src/api/devices.test.ts` | 5 | `devicesApi.list/create/delete`, bearer token header injection, and that a `401` response triggers logout plus a readable error message |
+| `src/pages/Devices/DeviceCard.test.tsx` | 6 | Name/location/type/protocol rendering, online/offline and disabled badges, the "No location" fallback, and the delete button callback |
+| `src/pages/Devices/DeviceForm.test.tsx` | 4 | Client-side validation (blank name/topic), a successful create flow, an API-failure error toast, and the Cancel button |
+| `src/pages/Devices/Devices.test.tsx` | 4 | Empty state, device card rendering, the full delete flow (confirm → API call → toast → list refetch), and that a failed deletion shows an error toast while keeping the device visible |
+| `src/hooks/useRealtimeAlerts.test.ts` | 6 | WebSocket connect/disconnect gating on auth state, connected-state toggling, incoming alerts updating the store and firing a toast, malformed JSON frames being ignored, and socket cleanup on unmount |
+
+These tests exercise the Devices feature end-to-end at the component level (API client → form → list → realtime hook) without needing a router or store `Provider` — Zustand stores in this codebase are plain module-level singletons, so tests read/reset them directly via `useXStore.getState()` / `.setState()`.
 
 ---
 
@@ -461,21 +646,30 @@ ruff format .
 - Automatic retention policy and storage management
 - Motion detection and real-time playback
 - Timeline-based navigation
+- **Local encryption at rest for recordings, clips, and thumbnails (AES-256-GCM envelope encryption)**
+- **Encrypted RTSP credentials in the database**
+- **Audit logging for auth, settings, camera, and user actions**
+- **Startup enforcement against a default/placeholder secret key**
+- **Visual timeline with event markers**
+- **Camera offline detection and alerts** (backend heartbeat monitoring with real-time WebSocket push, toast, chime, and desktop notification)
+- **Video clip export and download** (arbitrary time-range export spanning multiple recording segments, transcoded and concatenated on demand, plus one-click download for events, full recording segments, and exported ranges)
+- **Multi-camera synchronized grid playback** (shared master clock with drift correction across tiles)
+- **Device registry and MQTT sensor ingestion** — presence sensors, door/window sensors, and doorbell buttons via ESPHome and Zigbee2MQTT, feeding the same Events pipeline and real-time alerts as cameras (no Home Assistant required)
+- **Devices management UI** — dedicated page to add, view, and remove sensors, with online/offline status and sensor events surfaced in Events and the dashboard
 
 ### 🔜 Coming Soon
+- Two-factor authentication (TOTP)
 - Background transcoding pipeline
 - Push notifications (browser, email, Discord)
-- Visual timeline with event markers
-- Camera offline detection and alerts
-- Video clip export and download
-- Multi-camera synchronized grid playback
 - Production Docker Compose with Nginx
+- Home Assistant integration (expose Sentinel Vault devices/events as HA entities, alongside the existing direct-MQTT path)
 
 ### 🔮 Future
 - ONVIF camera auto-discovery
 - Mobile app (React Native)
 - Multi-site support with remote access
 - Prometheus metrics and Grafana dashboards
+- DIY hardware guides for 3D-printed ESP32 sensor enclosures
 
 ---
 

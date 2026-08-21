@@ -7,6 +7,10 @@ const FILTERS = [
   { label: "All", value: "all" },
   { label: "Motion", value: "motion" },
   { label: "Camera Offline", value: "camera_offline" },
+  { label: "Door Open", value: "door_open" },
+  { label: "Presence", value: "presence_detected" },
+  { label: "Doorbell", value: "doorbell_pressed" },
+  { label: "Device Offline", value: "device_offline" },
 ];
 
 interface EventFiltersBarProps {

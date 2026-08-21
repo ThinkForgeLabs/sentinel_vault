@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, model_validator
 
 class EventFilters(BaseModel):
     camera_id: uuid.UUID | None = None
+    device_id: uuid.UUID | None = None
     event_type: str | None = None
     importance: str | None = None
     after: datetime | None = None
@@ -16,7 +17,8 @@ class EventFilters(BaseModel):
 
 class EventOut(BaseModel):
     id: uuid.UUID
-    camera_id: uuid.UUID
+    camera_id: uuid.UUID | None = None
+    device_id: uuid.UUID | None = None
     event_type: str
     subtype: str | None = None
     started_at: datetime
@@ -46,7 +48,8 @@ class EventStats(BaseModel):
 
 class EventResponse(BaseModel):
     id: uuid.UUID
-    camera_id: uuid.UUID
+    camera_id: uuid.UUID | None = None
+    device_id: uuid.UUID | None = None
     event_type: str
     subtype: str | None = None
     started_at: datetime

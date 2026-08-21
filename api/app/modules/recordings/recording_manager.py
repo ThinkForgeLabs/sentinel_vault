@@ -23,6 +23,7 @@ from typing import Optional
 
 import cv2
 
+from app.core import crypto
 from app.core.config import settings
 from app.modules.cameras.capture_manager import capture_manager
 from app.modules.detection.manager import DetectionManager
@@ -100,6 +101,10 @@ class _CameraRecorder:
             segment_path.unlink(missing_ok=True)
             return None
 
+        # Encrypt the finished segment in place — from this point on, the
+        # only copy of this footage on disk is ciphertext (AES-256-GCM).
+        crypto.encrypt_file_in_place(segment_path)
+
         file_size = segment_path.stat().st_size
         resolution = f"{self._frame_size[0]}x{self._frame_size[1]}" if self._frame_size else ""
 
@@ -160,11 +165,14 @@ class _CameraRecorder:
                 clip_path.unlink(missing_ok=True)
             return None
 
+        # Encrypt the finished clip in place, same as segments above.
+        crypto.encrypt_file_in_place(clip_path)
+
         thumbnail_path = None
         if thumb_bytes:
             thumbnail_path = get_thumbnail_path(clip_id)
             try:
-                thumbnail_path.write_bytes(thumb_bytes)
+                thumbnail_path.write_bytes(crypto.encrypt_bytes(thumb_bytes))
             except OSError as exc:
                 logger.warning("Failed writing thumbnail for %s: %s", clip_id, exc)
                 thumbnail_path = None

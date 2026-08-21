@@ -4,9 +4,11 @@ from sqlalchemy import select, delete as sa_delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core import crypto
 from app.core.exceptions import NotFoundError
 from app.modules.cameras.model import Camera
 from app.modules.cameras.schemas import CameraCreate, CameraUpdate, TestConnectionResponse
+from app.services.audit import log_action
 
 
 async def list_cameras(db: AsyncSession) -> list[Camera]:
@@ -26,12 +28,14 @@ async def get_camera(db: AsyncSession, camera_id: uuid.UUID) -> Camera:
     return camera
 
 
-async def create_camera(db: AsyncSession, data: CameraCreate) -> Camera:
+async def create_camera(
+    db: AsyncSession, data: CameraCreate, actor_id: str | None = None
+) -> Camera:
     is_usb = data.rtsp_url.startswith("usb://")
     camera = Camera(
         name=data.name,
         location_label=data.location_label,
-        rtsp_url_encrypted=data.rtsp_url,
+        rtsp_url_encrypted=crypto.encrypt_str(data.rtsp_url),
         record_enabled=data.record_enabled,
         retention_days=data.retention_days,
         status="online" if is_usb else "offline",
@@ -45,20 +49,31 @@ async def create_camera(db: AsyncSession, data: CameraCreate) -> Camera:
     if camera.record_enabled:
         from app.modules.recordings.recording_manager import recording_manager
         recording_manager.start_recording(
-            str(camera.id), camera.rtsp_url_encrypted, camera.retention_days
+            str(camera.id), crypto.decrypt_str(camera.rtsp_url_encrypted), camera.retention_days
         )
+
+    await log_action(
+        db,
+        actor_id=actor_id,
+        action="create_camera",
+        resource_type="camera",
+        resource_id=str(camera.id),
+        details={"name": camera.name, "location_label": camera.location_label},
+    )
 
     return camera
 
 
-async def update_camera(db: AsyncSession, camera_id: uuid.UUID, data: CameraUpdate) -> Camera:
+async def update_camera(
+    db: AsyncSession, camera_id: uuid.UUID, data: CameraUpdate, actor_id: str | None = None
+) -> Camera:
     camera = await get_camera(db, camera_id)
     updates = data.model_dump(exclude_unset=True)
 
     needs_restart = "rtsp_url" in updates or "retention_days" in updates
 
     if "rtsp_url" in updates:
-        updates["rtsp_url_encrypted"] = updates.pop("rtsp_url")
+        updates["rtsp_url_encrypted"] = crypto.encrypt_str(updates.pop("rtsp_url"))
     for key, value in updates.items():
         setattr(camera, key, value)
     await db.flush()
@@ -73,14 +88,27 @@ async def update_camera(db: AsyncSession, camera_id: uuid.UUID, data: CameraUpda
         # whenever the source or retention window may have changed.
         recording_manager.stop_recording(str(camera.id))
         recording_manager.start_recording(
-            str(camera.id), camera.rtsp_url_encrypted, camera.retention_days
+            str(camera.id), crypto.decrypt_str(camera.rtsp_url_encrypted), camera.retention_days
         )
+
+    # Never log the raw RTSP URL/credentials — only which fields changed.
+    await log_action(
+        db,
+        actor_id=actor_id,
+        action="update_camera",
+        resource_type="camera",
+        resource_id=str(camera_id),
+        details={"fields": list(updates.keys())},
+    )
 
     return camera
 
 
-async def delete_camera(db: AsyncSession, camera_id: uuid.UUID) -> None:
+async def delete_camera(
+    db: AsyncSession, camera_id: uuid.UUID, actor_id: str | None = None
+) -> None:
     camera = await get_camera(db, camera_id)
+    camera_name = camera.name
 
     # Stop recording and detection before deleting
     from app.modules.recordings.recording_manager import recording_manager
@@ -104,6 +132,15 @@ async def delete_camera(db: AsyncSession, camera_id: uuid.UUID) -> None:
 
     await db.delete(camera)
     await db.flush()
+
+    await log_action(
+        db,
+        actor_id=actor_id,
+        action="delete_camera",
+        resource_type="camera",
+        resource_id=str(cam_id),
+        details={"name": camera_name},
+    )
 
 
 async def test_connection(rtsp_url: str) -> TestConnectionResponse:

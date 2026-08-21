@@ -17,6 +17,7 @@ from app.modules.recordings.schemas import (
     StorageSettingsPayload,
     StorageStats,
 )
+from app.services.video_crypto import cleanup_task, decrypt_to_temp
 
 router = APIRouter()
 
@@ -96,10 +97,15 @@ async def download_recording(
     if not path.exists():
         raise HTTPException(status_code=404, detail="Recording file missing from disk")
 
+    # Recordings are encrypted at rest — decrypt into a short-lived temp
+    # file for this download, then delete it once the response is sent.
+    temp_path = decrypt_to_temp(path, suffix=path.suffix)
+
     return FileResponse(
-        path,
+        temp_path,
         media_type="video/x-msvideo",
         filename=f"{recording.camera_id}_{recording.start_time.isoformat()}{path.suffix}",
+        background=cleanup_task(temp_path),
     )
 
 

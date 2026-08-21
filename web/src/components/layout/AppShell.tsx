@@ -1,11 +1,16 @@
 import { Outlet } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { useUiStore } from "@/store/uiStore";
+import { useRealtimeAlerts } from "@/hooks/useRealtimeAlerts";
 import { X } from "lucide-react";
 
 export function AppShell() {
   const toasts = useUiStore((s) => s.toasts);
   const removeToast = useUiStore((s) => s.removeToast);
+
+  // Keeps the realtime alerts WebSocket alive app-wide, independent of
+  // which page is currently mounted.
+  useRealtimeAlerts();
 
   return (
     <div className="flex h-screen w-screen overflow-hidden">
