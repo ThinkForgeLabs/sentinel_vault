@@ -174,10 +174,18 @@ async def sync_camera_to_detector(db: AsyncSession, camera: Camera) -> None:
     if camera.detect_backend == "yolo":
         await _register_yolo(db, camera, mgr)
     else:
+        # Pull this camera's saved motion-detector settings (threshold,
+        # min_contour_area) from the settings-table JSON blob instead of
+        # letting MotionDetector fall back to its hardcoded defaults —
+        # otherwise switching back to "motion" silently discards any
+        # custom sensitivity the user previously saved for this camera.
+        motion_settings = await get_motion_settings(db, camera.id)
         mgr.sync_camera(
             str(camera.id),
             backend="motion",
             enabled=camera.detect_enabled,
+            threshold=motion_settings.threshold,
+            min_contour_area=motion_settings.min_contour_area,
         )
 
 

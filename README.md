@@ -428,7 +428,8 @@ Each camera independently picks its detection backend via `detect_backend`: `mot
 
 1. **Camera `latitude`/`longitude` are a static, surveyed camera position** used only to plot the camera itself on a CoT/TAK map when it publishes a detection event. They are **not** computed target geolocation — there is no range/bearing/heading-based math to estimate where a detected object actually is; only the camera's own fixed position is reported.
 2. **Recording-enabled cameras running the YOLO backend will log two Event rows per detection burst**: the original motion-detector `event_type="motion"` clip event (unchanged, still has a video clip) and a separate `event_type="detection"` alert event created for the YOLO trigger (thumbnail only, no clip — by design, so the existing recording pipeline stays untouched). This is expected and both rows show up in Event history.
-3. **Known minor gap:** if you switch a camera's `detect_backend` back to `motion` after having customized its motion-detector thresholds (via the separate motion-settings endpoint), the motion detector is rebuilt with default sensitivity values rather than your previously saved custom thresholds. Re-apply your custom motion settings after switching back if needed.
+
+Switching a camera's `detect_backend` back to `motion` (via `/detection-settings`) restores that camera's previously saved custom threshold/`min_contour_area` from the motion-settings endpoint automatically — no need to re-apply them by hand.
 
 ---
 
