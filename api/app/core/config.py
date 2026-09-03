@@ -1,4 +1,5 @@
 from functools import lru_cache
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -27,8 +28,24 @@ class Settings(BaseSettings):
     # Storage
     storage_root: str = "./data/recordings"
     upload_root: str = "./data/uploads"
+    models_dir: str = "./data/models"
     encryption_enabled: bool = True
     segment_duration_minutes: int = 15
+
+    # MQTT (optional bridge for external MQTT/TAK integration)
+    mqtt_enabled: bool = False
+    mqtt_broker: str = "localhost"
+    mqtt_port: int = 1883
+    mqtt_username: str = ""
+    mqtt_password: str = ""
+    mqtt_tls_enabled: bool = False
+    mqtt_tls_insecure: bool = False
+    mqtt_topic_alerts: str = "sentinelvault/alerts"
+    # CoT (Cursor-on-Target) publishes plain XML text on this topic, not JSON
+    # — the format PyTAK / FreeTAKServer / most TAK MQTT bridges expect.
+    mqtt_topic_cot: str = "cot"
+    cot_type: str = "a-u-G"
+    cot_stale_seconds: float = 60.0
 
     # CORS
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]

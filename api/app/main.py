@@ -7,28 +7,48 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.logging import setup_logging
-from app.db.session import engine, async_session_factory
 from app.db.base import Base
+from app.db.session import async_session_factory, engine
 from app.middleware.error_handler import register_error_handlers
 from app.middleware.request_context import RequestContextMiddleware
 from app.modules.auth.router import router as auth_router
-from app.modules.users.router import router as users_router
-from app.modules.cameras.router import router as cameras_router
 from app.modules.cameras.capture_manager import capture_manager
+from app.modules.cameras.router import router as cameras_router
+from app.modules.detection.drain_task import detection_alert_drain_loop
+from app.modules.detection.routes import router as detection_router
+from app.modules.detection.service import init_detectors
+from app.modules.events.drain_task import motion_event_drain_loop
 from app.modules.events.router import router as events_router
+from app.modules.ml_models.router import router as ml_models_router
+from app.modules.ml_models.service import register_stock_model
 from app.modules.playback.router import router as playback_router
-from app.modules.settings.router import router as settings_router
-from app.modules.recordings.router import router as recordings_router
 from app.modules.recordings.recording_manager import recording_manager
+from app.modules.recordings.router import router as recordings_router
 from app.modules.recordings.tasks import (
     camera_status_sync_loop,
     flush_segments_loop,
     retention_cleanup_loop,
     start_recording_for_enabled_cameras,
 )
-from app.modules.detection.routes import router as detection_router
-from app.modules.detection.service import init_detectors
-from app.modules.events.drain_task import motion_event_drain_loop
+from app.modules.settings.router import router as settings_router
+from app.modules.users.router import router as users_router
+from app.services.mqtt_service import mqtt_service
+
+# Standard 80-class COCO label set used by the bundled stock yolov8n model.
+STOCK_MODEL_CLASSES = [
+    "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck",
+    "boat", "traffic light", "fire hydrant", "stop sign", "parking meter", "bench",
+    "bird", "cat", "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra",
+    "giraffe", "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee",
+    "skis", "snowboard", "sports ball", "kite", "baseball bat", "baseball glove",
+    "skateboard", "surfboard", "tennis racket", "bottle", "wine glass", "cup",
+    "fork", "knife", "spoon", "bowl", "banana", "apple", "sandwich", "orange",
+    "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "couch",
+    "potted plant", "bed", "dining table", "toilet", "tv", "laptop", "mouse",
+    "remote", "keyboard", "cell phone", "microwave", "oven", "toaster", "sink",
+    "refrigerator", "book", "clock", "vase", "scissors", "teddy bear",
+    "hair drier", "toothbrush",
+]
 
 logger = logging.getLogger(__name__)
 
@@ -126,15 +146,30 @@ async def lifespan(app: FastAPI):
     task_retention = asyncio.create_task(retention_cleanup_loop())
     task_status_sync = asyncio.create_task(camera_status_sync_loop())
 
+    # ── ML models: register the bundled stock model (idempotent) ──
+    async with async_session_factory() as db:
+        try:
+            await register_stock_model(
+                db, "yolov8n.pt", class_names=STOCK_MODEL_CLASSES, make_default=True
+            )
+            await db.commit()
+        except Exception as exc:
+            logger.warning("Stock model registration skipped: %s", exc)
+
+    # ── MQTT bridge (no-op unless MQTT_ENABLED=true) ──
+    mqtt_service.start()
+
     # ── Detection startup ──
     async with async_session_factory() as db:
-        from app.modules.cameras.model import Camera
         from sqlalchemy import select
+
+        from app.modules.cameras.model import Camera
         result = await db.execute(select(Camera.id))
         camera_ids = [str(row[0]) for row in result.all()]
         await init_detectors(db, camera_ids)
 
     task_motion_drain = asyncio.create_task(motion_event_drain_loop())
+    task_detection_drain = asyncio.create_task(detection_alert_drain_loop())
 
     yield
 
@@ -159,11 +194,15 @@ async def lifespan(app: FastAPI):
     await _cancel_task(task_retention, "retention_cleanup_loop")
     await _cancel_task(task_status_sync, "camera_status_sync_loop")
     await _cancel_task(task_motion_drain, "motion_event_drain_loop")
+    await _cancel_task(task_detection_drain, "detection_alert_drain_loop")
 
     # 5. Release camera hardware
     capture_manager.release_all()
 
-    # 6. Dispose DB engine
+    # 6. Stop the MQTT bridge
+    mqtt_service.stop()
+
+    # 7. Dispose DB engine
     await engine.dispose()
 
     logger.info("Shutdown: complete")
@@ -200,6 +239,7 @@ app.include_router(playback_router, prefix=f"{PREFIX}/playback", tags=["Playback
 app.include_router(settings_router, prefix=f"{PREFIX}/settings", tags=["Settings"])
 app.include_router(recordings_router, prefix=f"{PREFIX}/recordings", tags=["Recordings"])
 app.include_router(detection_router, prefix=f"{PREFIX}/detection", tags=["Detection"])
+app.include_router(ml_models_router, prefix=f"{PREFIX}/ml-models", tags=["ML Models"])
 
 
 @app.get(f"{PREFIX}/system/health")

@@ -1,7 +1,8 @@
+import json
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class CameraCreate(BaseModel):
@@ -10,6 +11,8 @@ class CameraCreate(BaseModel):
     rtsp_url: str = Field(..., min_length=1)
     record_enabled: bool = True
     retention_days: int = Field(default=14, ge=1, le=365)
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
 
 
 class CameraUpdate(BaseModel):
@@ -19,6 +22,8 @@ class CameraUpdate(BaseModel):
     record_enabled: bool | None = None
     retention_days: int | None = None
     status: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
 
 
 class CameraOut(BaseModel):
@@ -30,7 +35,28 @@ class CameraOut(BaseModel):
     retention_days: int
     created_at: datetime
 
-    model_config = {"from_attributes": True}
+    detect_enabled: bool = False
+    detect_backend: str = "motion"
+    model_id: uuid.UUID | None = None
+    confidence_threshold: float = 0.5
+    detect_class_ids_json: str = "[]"
+    detect_class_ids: list[int] = []
+    alert_enabled: bool = True
+    alert_cooldown_seconds: int = 30
+    mqtt_publish_enabled: bool = False
+    cot_publish_enabled: bool = False
+    latitude: float | None = None
+    longitude: float | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @model_validator(mode="after")
+    def parse_class_ids(self):
+        try:
+            self.detect_class_ids = json.loads(self.detect_class_ids_json)
+        except (json.JSONDecodeError, TypeError):
+            self.detect_class_ids = []
+        return self
 
 
 class CameraDetail(CameraOut):

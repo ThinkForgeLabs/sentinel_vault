@@ -1,16 +1,37 @@
-from fastapi import APIRouter, Depends
-from uuid import UUID
 from datetime import datetime, timezone
+from uuid import UUID
+
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.dependencies.auth import get_current_user
 from app.modules.auth.model import User
-from .manager import DetectionManager
-from .schemas import MotionSettingsRead, MotionSettingsUpdate, MotionStatusRead
+
 from . import service
+from .manager import DetectionManager
+from .schemas import (
+    DetectionEngineStatus,
+    DetectionSettingsRead,
+    DetectionSettingsUpdate,
+    MotionSettingsRead,
+    MotionSettingsUpdate,
+    MotionStatusRead,
+)
 
 router = APIRouter()
+
+
+# NOTE: registered before the /{camera_id}/... routes below — Starlette
+# matches routes by structural position (2 path segments here, same as
+# /{camera_id}/status), so this must come first or "/engine/status" would
+# be captured as camera_id="engine" and fail UUID validation with a 422.
+@router.get("/engine/status", response_model=list[DetectionEngineStatus])
+async def read_engine_status(
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    return await service.get_engine_status(db)
 
 
 @router.get("/{camera_id}/settings", response_model=MotionSettingsRead)
@@ -61,3 +82,22 @@ async def read_motion_status(
         frames_processed=detector.frames_processed,
         last_trigger=last_trigger,
     )
+
+
+@router.get("/{camera_id}/detection-settings", response_model=DetectionSettingsRead)
+async def read_detection_settings(
+    camera_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    return await service.get_detection_settings(db, camera_id)
+
+
+@router.put("/{camera_id}/detection-settings", response_model=DetectionSettingsRead)
+async def write_detection_settings(
+    camera_id: UUID,
+    body: DetectionSettingsUpdate,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    return await service.update_detection_settings(db, camera_id, body)

@@ -67,10 +67,19 @@ It is built to provide the core features you need:
 - On-the-fly **H.264 transcoding** with caching for browser playback
 
 ### 🚨 Events & Detection
-- Motion detection
+- Motion detection (frame-difference based, per-camera tunable)
+- **YOLO object detection** as a per-camera alternative backend to motion detection
+- Bundled stock YOLO model plus support for uploading your own custom-trained models
+- Configurable detection confidence threshold and class filtering per camera
 - Event logging with severity levels
 - Event statistics dashboard
 - Filterable event history and review workflow
+
+### 📡 Alerting — MQTT & Cursor-on-Target (CoT)
+- Optional MQTT publishing of detection alerts (JSON payload) for integration with home-automation or SOC tooling
+- Optional Cursor-on-Target (CoT) event publishing for TAK Server / FreeTAKServer / ATAK integration
+- Per-camera static latitude/longitude for CoT plotting (a surveyed camera position, **not** computed target geolocation — see note below)
+- Per-camera alert cooldown to prevent alert flooding during sustained detections
 
 ### 🔐 Authentication & Access Control
 - JWT authentication
@@ -198,6 +207,34 @@ SEGMENT_DURATION_MINUTES=15
 ```
 
 > **Note:** Use `localhost` when the backend runs on your machine, and use Docker service names like `postgres` and `redis` when the backend runs inside Docker.
+
+### Optional — YOLO detection, model storage, MQTT & CoT
+
+All of these are optional and default to "off" — the platform runs exactly as before if you don't set them. Add any of the following to your `.env` to enable them:
+
+```env
+# Directory where uploaded/stock detection models are stored on disk
+MODELS_DIR=./data/models
+
+# MQTT alert + CoT publishing (disabled by default)
+MQTT_ENABLED=false
+MQTT_BROKER=localhost
+MQTT_PORT=1883
+MQTT_USERNAME=
+MQTT_PASSWORD=
+MQTT_TLS_ENABLED=false
+MQTT_TLS_INSECURE=false
+MQTT_TOPIC_ALERTS=sentinelvault/alerts
+MQTT_TOPIC_COT=cot
+
+# Cursor-on-Target (CoT) event settings, used when a camera has
+# cot_publish_enabled=true and a latitude/longitude set
+COT_TYPE=a-u-G
+COT_STALE_SECONDS=60.0
+```
+
+- `MQTT_ENABLED=false` (the default) makes the MQTT client fully inert — no connection is attempted and publish calls are silent no-ops.
+- Detection backend, model selection, confidence threshold, class filtering, alert cooldown, and MQTT/CoT publishing are all configured **per camera** via `PUT /api/v1/detection/{camera_id}/detection-settings`, not globally.
 
 ---
 
@@ -374,8 +411,25 @@ Sentinel Vault is organized around these main backend modules:
 | `/recordings` | Recording lifecycle management |
 | `/playback` | Playback availability and video delivery |
 | `/events` | Event listing, filtering, and statistics |
+| `/detection` | Per-camera detection settings (motion/YOLO), detection-engine status |
+| `/ml-models` | Upload, list, set-default, and delete detection models (stock + custom) |
 | `/users` | User and role management |
 | `/settings` | System-wide configuration |
+
+---
+
+## 🎯 Detection Backends & Model Management
+
+Each camera independently picks its detection backend via `detect_backend`: `motion` (the original frame-difference detector, unchanged) or `yolo` (object detection). Switching a camera's backend, model, confidence threshold, or class filter is done through `PUT /api/v1/detection/{camera_id}/detection-settings` and takes effect immediately without a restart.
+
+**Stock + custom models, side by side.** On first boot the backend registers a bundled stock YOLO model (`yolov8n.pt`, COCO classes) as the default. You can additionally upload your own custom-trained `.pt`/`.onnx` model through `POST /api/v1/ml-models`, and set either the stock model or any custom model as a camera's active model — both are always available side by side, and the stock model cannot be deleted.
+
+**Two important behavioral notes carried over from this integration:**
+
+1. **Camera `latitude`/`longitude` are a static, surveyed camera position** used only to plot the camera itself on a CoT/TAK map when it publishes a detection event. They are **not** computed target geolocation — there is no range/bearing/heading-based math to estimate where a detected object actually is; only the camera's own fixed position is reported.
+2. **Recording-enabled cameras running the YOLO backend will log two Event rows per detection burst**: the original motion-detector `event_type="motion"` clip event (unchanged, still has a video clip) and a separate `event_type="detection"` alert event created for the YOLO trigger (thumbnail only, no clip — by design, so the existing recording pipeline stays untouched). This is expected and both rows show up in Event history.
+
+Switching a camera's `detect_backend` back to `motion` (via `/detection-settings`) restores that camera's previously saved custom threshold/`min_contour_area` from the motion-settings endpoint automatically — no need to re-apply them by hand.
 
 ---
 
@@ -398,12 +452,17 @@ Sentinel_vault/
 │       ├── modules/
 │       │   ├── auth/
 │       │   ├── cameras/
+│       │   ├── detection/
 │       │   ├── events/
+│       │   ├── ml_models/
 │       │   ├── playback/
 │       │   ├── recordings/
 │       │   ├── settings/
 │       │   └── users/
 │       ├── services/
+│       │   ├── cot_builder.py
+│       │   ├── mqtt_service.py
+│       │   └── storage.py
 │       ├── tasks/
 │       └── utils/
 ├── web/
@@ -461,6 +520,9 @@ ruff format .
 - Automatic retention policy and storage management
 - Motion detection and real-time playback
 - Timeline-based navigation
+- YOLO object detection as a per-camera alternative to motion detection
+- Stock + user-uploaded custom detection model support, side by side
+- MQTT and Cursor-on-Target (CoT) alert publishing for TAK/FreeTAKServer integration
 
 ### 🔜 Coming Soon
 - Background transcoding pipeline

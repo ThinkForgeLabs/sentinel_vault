@@ -1,6 +1,7 @@
 import uuid
 
-from sqlalchemy import select, delete as sa_delete
+from sqlalchemy import delete as sa_delete
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -35,6 +36,8 @@ async def create_camera(db: AsyncSession, data: CameraCreate) -> Camera:
         record_enabled=data.record_enabled,
         retention_days=data.retention_days,
         status="online" if is_usb else "offline",
+        latitude=data.latitude,
+        longitude=data.longitude,
     )
     db.add(camera)
     await db.flush()
